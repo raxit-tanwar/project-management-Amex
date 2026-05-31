@@ -12,15 +12,6 @@ export function formatDuration(seconds: number): string {
     return [h, m, s].map(v => String(v).padStart(2, '0')).join(':')
 }
 
-export function getPriorityColor(priority: string): string {
-    const map: Record<string, string> = {
-        Low: '#22c55e',
-        Medium: '#f59e0b',
-        High: '#ef4444',
-        Critical: '#dc2626',
-    }
-    return map[priority] ?? '#6366f1'
-}
 
 export function isOverdue(dueDate?: string | null): boolean {
     if (!dueDate) return false

@@ -6,16 +6,19 @@ import ProjectCard from './ProjectCard'
 import NewProjectModal from './NewProjectModal'
 import ProjectDetailPanel from './ProjectDetailPanel'
 import GlobalTimerBar from '../timer/GlobalTimerBar'
-import { getPriorityColor, isOverdue } from '@/lib/utils'
+import { isOverdue } from '@/lib/utils'
 
 interface Stage { id: string; name: string; color: string; position: number }
 interface Project {
-    id: string; name: string; event_code?: string; client_id?: string; client?: { name: string }; client_color?: string; priority: string
-    due_date?: string; stage_id?: string; stage?: Stage
+    id: string; name: string; event_code?: string; client_id?: string; client?: { name: string }; client_color?: string
+    build_type?: string; build_addons?: string[]; project_type?: string; stakeholder_name?: string; stakeholder_email?: string
+    due_date?: string; build_live_date?: string; start_date?: string; build_assigned_date?: string
+    web_build_start_date?: string; first_draft_sent_date?: string
+    stage_id?: string; stage?: Stage
     tasks?: { id: string; status: string; name: string; estimated_minutes?: number }[]
     checklist_items?: { id: string; checked: boolean; text: string; position: number }[]
     time_entries?: { duration_seconds: number }[]
-    description?: string; notes?: string; start_date?: string
+    description?: string; notes?: string
 }
 
 interface Client { id: string; name: string }
@@ -68,10 +71,11 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
         setProjects(prev => prev.map(p =>
             p.id === draggedId ? { ...p, stage_id: stageId, stage: stages.find(s => s.id === stageId) } : p
         ))
-        await supabase.from('projects').update({
-            stage_id: stageId,
-            stage_changed_at: new Date().toISOString()
-        }).eq('id', draggedId)
+        await supabase.rpc('update_project_stage', {
+            p_id: draggedId,
+            p_stage_id: stageId,
+            p_stage_changed_at: new Date().toISOString(),
+        })
         setDraggedId(null)
         setDragOverStage(null)
     }
@@ -248,14 +252,14 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                         {/* Header row */}
                         <div style={{
-                            display: 'grid', gridTemplateColumns: '1fr 120px 100px 90px 90px 80px',
+                            display: 'grid', gridTemplateColumns: '1fr 120px 150px 90px 90px 80px',
                             padding: '8px 16px', fontSize: 11, fontWeight: 700,
                             color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.06em'
                         }}>
                             <span>Project</span>
                             <span>Stage</span>
-                            <span>Priority</span>
-                            <span>Due date</span>
+                            <span>Build Type</span>
+                            <span>Live Date</span>
                             <span>Time</span>
                             <span>Checklist</span>
                         </div>
@@ -263,14 +267,15 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                             const checklist = project.checklist_items ?? []
                             const done = checklist.filter(c => c.checked).length
                             const overdue = isOverdue(project.due_date)
+                            const stageColor = project.stage?.color ?? '#6366f1'
                             return (
                                 <div
                                     key={project.id}
                                     className="card"
                                     style={{
-                                        display: 'grid', gridTemplateColumns: '1fr 120px 100px 90px 90px 80px',
+                                        display: 'grid', gridTemplateColumns: '1fr 120px 150px 90px 90px 80px',
                                         padding: '14px 16px', cursor: 'pointer',
-                                        borderLeft: `3px solid ${getPriorityColor(project.priority)}`,
+                                        borderLeft: `3px solid ${stageColor}`,
                                         transition: 'all 0.15s ease'
                                     }}
                                     onClick={() => setSelectedProject(project)}
@@ -278,7 +283,10 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                                     onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'}
                                 >
                                     <div>
-                                        <div style={{ fontWeight: 600, fontSize: 14 }}>{project.name}</div>
+                                        <div style={{ fontWeight: 600, fontSize: 14 }}>
+                                            {project.event_code && <span style={{ color: 'var(--accent-light)', marginRight: 6, fontSize: 12 }}>{project.event_code}</span>}
+                                            {project.name}
+                                        </div>
                                         {project.client?.name && (
                                             <span style={{
                                                 fontSize: 11, fontWeight: 600, padding: '1px 7px', borderRadius: 5,
@@ -295,8 +303,8 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                                             }}>{project.stage.name}</span>
                                         )}
                                     </div>
-                                    <div>
-                                        <span className={`badge priority-${project.priority}`}>{project.priority}</span>
+                                    <div style={{ fontSize: 12, color: 'var(--accent-light)', fontWeight: 600 }}>
+                                        {project.build_type ?? '—'}
                                     </div>
                                     <div style={{
                                         fontSize: 12, color: overdue ? 'var(--danger)' : 'var(--text-muted)',

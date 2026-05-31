@@ -25,7 +25,6 @@ interface TimerContextType {
     pauseTimer: () => void
     stopTimer: (notes?: string) => Promise<void>
     resetTimer: () => void
-    // Selection for global bar
     selection: { projectId: string | null; taskId: string | null }
     setSelection: (s: { projectId: string | null; taskId: string | null }) => void
 }
@@ -40,6 +39,58 @@ const defaultTimer: TimerState = {
     taskName: null,
     startedAt: null,
     mode: 'free',
+}
+
+const STORAGE_KEY = 'flowdesk_active_timer'
+
+interface PersistedTimer {
+    startedAt: number
+    projectId: string | null
+    projectName: string | null
+    taskId: string | null
+    taskName: string | null
+    mode: TimerState['mode']
+}
+
+function saveToStorage(state: TimerState) {
+    if (!state.isRunning || !state.startedAt) return
+    const data: PersistedTimer = {
+        startedAt: state.startedAt.getTime(),
+        projectId: state.projectId,
+        projectName: state.projectName,
+        taskId: state.taskId,
+        taskName: state.taskName,
+        mode: state.mode,
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+}
+
+function clearStorage() {
+    localStorage.removeItem(STORAGE_KEY)
+}
+
+function restoreFromStorage(): TimerState | null {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY)
+        if (!raw) return null
+        const data = JSON.parse(raw) as PersistedTimer
+        const elapsed = Math.floor((Date.now() - data.startedAt) / 1000)
+        if (elapsed < 0) { clearStorage(); return null }
+        return {
+            isRunning: true,
+            isPaused: false,
+            seconds: elapsed,
+            startedAt: new Date(data.startedAt),
+            projectId: data.projectId,
+            projectName: data.projectName,
+            taskId: data.taskId,
+            taskName: data.taskName,
+            mode: data.mode,
+        }
+    } catch {
+        clearStorage()
+        return null
+    }
 }
 
 const TimerContext = createContext<TimerContextType | null>(null)
@@ -81,18 +132,18 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
                 console.error('Failed to save time entry:', err)
             }
         }
+        clearStorage()
         setTimer(defaultTimer)
     }, [timer, supabase])
 
     const startTimer = useCallback(async (opts?: {
         projectId?: string; projectName?: string; taskId?: string; taskName?: string; mode?: TimerState['mode']
     }) => {
-        // If already running and it's a different task, save current one first
         if (timer.isRunning && (timer.taskId !== opts?.taskId || timer.projectId !== opts?.projectId)) {
             await stopTimer('Auto-stopped for new task')
         }
 
-        setTimer({
+        const newState: TimerState = {
             isRunning: true,
             isPaused: false,
             seconds: 0,
@@ -102,15 +153,19 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
             taskId: opts?.taskId ?? null,
             taskName: opts?.taskName ?? null,
             mode: opts?.mode ?? 'free',
-        })
+        }
+        saveToStorage(newState)
+        setTimer(newState)
     }, [timer.isRunning, timer.taskId, timer.projectId, stopTimer])
 
     const pauseTimer = useCallback(() => {
+        clearStorage()
         setTimer(prev => ({ ...prev, isRunning: false, isPaused: true }))
     }, [])
 
     const resetTimer = useCallback(() => {
         clearInterval_()
+        clearStorage()
         setTimer(defaultTimer)
     }, [])
 
@@ -126,13 +181,13 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
         return clearInterval_
     }, [timer.isRunning])
 
-    // Load today's total on mount
+    // Load today's total on mount, then restore any in-progress timer
     useEffect(() => {
-        const loadToday = async () => {
+        const init = async () => {
             try {
                 const { data: { user }, error } = await supabase.auth.getUser()
                 if (!user || error) return
-                
+
                 const start = new Date()
                 start.setHours(0, 0, 0, 0)
                 const { data } = await supabase
@@ -140,26 +195,31 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
                     .select('duration_seconds')
                     .eq('user_id', user.id)
                     .gte('started_at', start.toISOString())
-                    
+
                 if (data) {
                     setTodaySeconds(data.reduce((sum, e) => sum + (e.duration_seconds || 0), 0))
                 }
             } catch (err) {
                 console.error('Failed to load today seconds:', err)
             }
+
+            // Restore timer that was running before refresh
+            const restored = restoreFromStorage()
+            if (restored) setTimer(restored)
         }
-        loadToday()
-    }, [supabase])
+        init()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
 
     return (
-        <TimerContext.Provider value={{ 
-            timer, 
+        <TimerContext.Provider value={{
+            timer,
             activeTimer: timer.isRunning ? timer : null,
-            displayTime, 
-            todaySeconds, 
-            startTimer, 
-            pauseTimer, 
-            stopTimer, 
+            displayTime,
+            todaySeconds,
+            startTimer,
+            pauseTimer,
+            stopTimer,
             resetTimer,
             selection,
             setSelection

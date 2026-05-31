@@ -8,7 +8,7 @@ import {
 } from 'recharts'
 
 interface Project {
-    id: string; name: string; priority: string; stage_id?: string; created_at: string; archived: boolean
+    id: string; name: string; build_type?: string; project_type?: string; stage_id?: string; created_at: string; archived: boolean
 }
 interface Stage { id: string; name: string; color: string }
 interface TimeEntry { id: string; project_id?: string; started_at: string; duration_seconds?: number }

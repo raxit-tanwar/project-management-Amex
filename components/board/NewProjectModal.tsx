@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 interface Stage { id: string; name: string; color: string }
-
 interface Client { id: string; name: string }
 
 interface NewProjectModalProps {
@@ -15,9 +14,21 @@ interface NewProjectModalProps {
     onCreated: () => void
 }
 
-const PRIORITY_COLORS: Record<string, string> = {
-    Low: '#22c55e', Medium: '#f59e0b', High: '#ef4444', Critical: '#dc2626'
-}
+const PRIMARY_BUILD_TYPES = [
+    'Registration Website',
+    'Website + Attendee Hub',
+    'Attendee hub + Event App',
+    'Website + Event App',
+    'Website + Attendee hub + Event App',
+]
+
+const BUILD_ADDONS = [
+    'Stand alone Survey',
+    'On Arrival',
+    'Exhibitor Management',
+]
+
+const PROJECT_TYPES = ['In person Event', 'Virtual Event', 'Hybrid Event']
 
 export default function NewProjectModal({ stages, clients: initialClients, userId, onClose, onCreated }: NewProjectModalProps) {
     const supabase = createClient()
@@ -26,6 +37,13 @@ export default function NewProjectModal({ stages, clients: initialClients, userI
     const [clients, setClients] = useState(initialClients)
     const [isAddingClient, setIsAddingClient] = useState(false)
     const [newClientName, setNewClientName] = useState('')
+    const [selectedAddons, setSelectedAddons] = useState<string[]>([])
+
+    function toggleAddon(addon: string) {
+        setSelectedAddons(prev =>
+            prev.includes(addon) ? prev.filter(a => a !== addon) : [...prev, addon]
+        )
+    }
 
     async function handleAddClient() {
         if (!newClientName.trim()) return
@@ -51,10 +69,18 @@ export default function NewProjectModal({ stages, clients: initialClients, userI
             name: form.get('name') as string,
             event_code: form.get('event_code') as string || null,
             client_id: form.get('client_id') as string || null,
-            priority: form.get('priority') as string,
-            start_date: form.get('start_date') as string || null,
-            due_date: form.get('due_date') as string || null,
             stage_id: form.get('stage_id') as string || null,
+            build_type: form.get('build_type') as string || null,
+            build_addons: selectedAddons.length > 0 ? selectedAddons : null,
+            project_type: form.get('project_type') as string || null,
+            stakeholder_name: form.get('stakeholder_name') as string || null,
+            stakeholder_email: form.get('stakeholder_email') as string || null,
+            start_date: form.get('start_date') as string || null,
+            build_assigned_date: form.get('start_date') as string || null,
+            web_build_start_date: form.get('web_build_start_date') as string || null,
+            first_draft_sent_date: form.get('first_draft_sent_date') as string || null,
+            due_date: form.get('build_live_date') as string || null,
+            build_live_date: form.get('build_live_date') as string || null,
             notes: form.get('notes') as string || null,
         }
 
@@ -100,7 +126,7 @@ export default function NewProjectModal({ stages, clients: initialClients, userI
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0
                 }}>
                     <div>
-                        <h2 style={{ fontSize: 18, fontWeight: 800 }}>New Project</h2>
+                        <h2 style={{ fontSize: 18, fontWeight: 800 }}>New Build Project</h2>
                         <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Fill in the project details below</p>
                     </div>
                     <button className="btn-icon" onClick={onClose} aria-label="Close">
@@ -113,12 +139,57 @@ export default function NewProjectModal({ stages, clients: initialClients, userI
                 <form onSubmit={handleSubmit} style={{ flex: 1, overflow: 'auto', padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 20 }}>
                     <div>
                         <label className="label" htmlFor="proj-name">Project name <span style={{ color: 'var(--danger)' }}>*</span></label>
-                        <input id="proj-name" name="name" className="input" required placeholder="e.g. Website Redesign" />
+                        <input id="proj-name" name="name" className="input" required placeholder="e.g. Annual Conference 2026" />
                     </div>
 
                     <div>
                         <label className="label" htmlFor="proj-code">Event Code <span style={{ color: 'var(--danger)' }}>*</span></label>
-                        <input id="proj-code" name="event_code" className="input" required placeholder="e.g. EVT-2024-001" />
+                        <input id="proj-code" name="event_code" className="input" required placeholder="e.g. EVT-2026-001 (from Cvent)" />
+                    </div>
+
+                    <div>
+                        <label className="label" htmlFor="proj-build-type">Type of Build <span style={{ color: 'var(--danger)' }}>*</span></label>
+                        <select id="proj-build-type" name="build_type" className="input" required defaultValue="">
+                            <option value="" disabled>Select primary build type...</option>
+                            {PRIMARY_BUILD_TYPES.map(bt => <option key={bt} value={bt}>{bt}</option>)}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="label">Add-ons <span style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 400 }}>(optional, select any)</span></label>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+                            {BUILD_ADDONS.map(addon => (
+                                <label key={addon} style={{
+                                    display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
+                                    padding: '10px 14px', borderRadius: 8,
+                                    background: selectedAddons.includes(addon) ? 'var(--accent-dim)' : 'var(--surface2)',
+                                    border: `1px solid ${selectedAddons.includes(addon) ? 'rgba(99,102,241,0.4)' : 'var(--border)'}`,
+                                    transition: 'all 0.15s'
+                                }}>
+                                    <div style={{
+                                        width: 18, height: 18, borderRadius: 4, border: '2px solid',
+                                        borderColor: selectedAddons.includes(addon) ? 'var(--accent)' : 'var(--border)',
+                                        background: selectedAddons.includes(addon) ? 'var(--accent)' : 'transparent',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        flexShrink: 0, transition: 'all 0.15s'
+                                    }}>
+                                        {selectedAddons.includes(addon) && (
+                                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4"><path d="M20 6L9 17l-5-5" /></svg>
+                                        )}
+                                    </div>
+                                    <input type="checkbox" checked={selectedAddons.includes(addon)} onChange={() => toggleAddon(addon)} style={{ display: 'none' }} />
+                                    <span style={{ fontSize: 13, fontWeight: 500, color: selectedAddons.includes(addon) ? 'var(--accent-light)' : 'var(--text)' }}>{addon}</span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="label" htmlFor="proj-project-type">Type of Project <span style={{ color: 'var(--danger)' }}>*</span></label>
+                        <select id="proj-project-type" name="project_type" className="input" required defaultValue="">
+                            <option value="" disabled>Select project type...</option>
+                            {PROJECT_TYPES.map(pt => <option key={pt} value={pt}>{pt}</option>)}
+                        </select>
                     </div>
 
                     <div>
@@ -128,12 +199,12 @@ export default function NewProjectModal({ stages, clients: initialClients, userI
                                 {isAddingClient ? '✕ Cancel' : '+ Add New Client'}
                             </button>
                         </div>
-                        
+
                         {isAddingClient ? (
                             <div style={{ display: 'flex', gap: 8 }}>
-                                <input 
-                                    className="input" 
-                                    placeholder="Enter new client name..." 
+                                <input
+                                    className="input"
+                                    placeholder="Enter new client name..."
                                     value={newClientName}
                                     onChange={e => setNewClientName(e.target.value)}
                                     autoFocus
@@ -151,35 +222,46 @@ export default function NewProjectModal({ stages, clients: initialClients, userI
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                         <div>
-                            <label className="label" htmlFor="proj-priority">Priority (Optional)</label>
-                            <select id="proj-priority" name="priority" className="input" defaultValue="Medium">
-                                <option value="">None</option>
-                                {['Low', 'Medium', 'High', 'Critical'].map(p => (
-                                    <option key={p} value={p} style={{ color: PRIORITY_COLORS[p] }}>{p}</option>
-                                ))}
-                            </select>
+                            <label className="label" htmlFor="proj-stakeholder-name">Build Stakeholder Name</label>
+                            <input id="proj-stakeholder-name" name="stakeholder_name" className="input" placeholder="e.g. Jane Smith" />
                         </div>
                         <div>
-                            <label className="label" htmlFor="proj-stage">Initial Stage <span style={{ color: 'var(--danger)' }}>*</span></label>
-                            <select id="proj-stage" name="stage_id" className="input" required defaultValue={stages[0]?.id ?? ''}>
-                                {stages.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                            </select>
+                            <label className="label" htmlFor="proj-stakeholder-email">Build Stakeholder Email</label>
+                            <input id="proj-stakeholder-email" name="stakeholder_email" type="email" className="input" placeholder="jane@company.com" />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="label" htmlFor="proj-stage">Initial Stage <span style={{ color: 'var(--danger)' }}>*</span></label>
+                        <select id="proj-stage" name="stage_id" className="input" required defaultValue={stages[0]?.id ?? ''}>
+                            {stages.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                        <div>
+                            <label className="label" htmlFor="proj-start">Build Assigned Date <span style={{ color: 'var(--danger)' }}>*</span></label>
+                            <input id="proj-start" name="start_date" type="date" className="input" required />
+                        </div>
+                        <div>
+                            <label className="label" htmlFor="proj-web-start">Web Build Start Date</label>
+                            <input id="proj-web-start" name="web_build_start_date" type="date" className="input" />
                         </div>
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                         <div>
-                            <label className="label" htmlFor="proj-start">Start date <span style={{ color: 'var(--danger)' }}>*</span></label>
-                            <input id="proj-start" name="start_date" type="date" className="input" required />
+                            <label className="label" htmlFor="proj-first-draft">First Draft Sent Date</label>
+                            <input id="proj-first-draft" name="first_draft_sent_date" type="date" className="input" />
                         </div>
                         <div>
-                            <label className="label" htmlFor="proj-due">Due date</label>
-                            <input id="proj-due" name="due_date" type="date" className="input" />
+                            <label className="label" htmlFor="proj-live">Build Live Date</label>
+                            <input id="proj-live" name="build_live_date" type="date" className="input" />
                         </div>
                     </div>
 
                     <div>
-                        <label className="label" htmlFor="proj-notes">Notes / Details</label>
+                        <label className="label" htmlFor="proj-notes">Build Notes</label>
                         <textarea id="proj-notes" name="notes" className="input" placeholder="Any additional context..." rows={3} />
                     </div>
 
