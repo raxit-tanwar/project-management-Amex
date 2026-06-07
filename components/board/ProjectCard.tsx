@@ -1,23 +1,24 @@
 'use client'
 
-import { isOverdue, formatDuration } from '@/lib/utils'
-
-const BUILD_TYPE_SHORT: Record<string, string> = {
-    'Registration Website': 'Reg Website',
-    'Website + Attendee Hub': 'Web + Hub',
-    'Attendee hub + Event App': 'Hub + App',
-    'Website + Event App': 'Web + App',
-    'Website + Attendee hub + Event App': 'Web + Hub + App',
-    'Add on - Stand alone Survey': 'Add on: Survey',
-    'Add on - On Arrival': 'Add on: On Arrival',
-    'Add on - Exhibitor Management': 'Add on: Exhibitor',
-}
+import { isOverdue } from '@/lib/utils'
 
 interface ProjectCardProps {
     project: {
-        id: string; name: string; event_code?: string; client_id?: string; client?: { name: string }; client_color?: string
-        build_type?: string; build_addons?: string[]; project_type?: string
-        due_date?: string; stage?: { name: string; color: string }
+        id: string
+        name: string
+        event_code?: string
+        client?: { name: string }
+        client_color?: string
+        // stakeholder info
+        stakeholder_name?: string
+        stakeholder_email?: string
+        // build info
+        build_type?: string
+        // dates
+        due_date?: string
+        // stage
+        stage?: { name: string; color: string }
+        // relations
         tasks?: { id: string; status: string }[]
         checklist_items?: { id: string; checked: boolean }[]
         time_entries?: { duration_seconds: number }[]
@@ -33,116 +34,159 @@ export default function ProjectCard({ project, totalSeconds, formatHours, onClic
     const checklistDone = checklist.filter(c => c.checked).length
     const tasks = project.tasks ?? []
     const tasksDone = tasks.filter(t => t.status === 'Done').length
+    const tasksInProgress = tasks.filter(t => t.status === 'In Progress').length
     const overdue = isOverdue(project.due_date)
     const stageColor = project.stage?.color ?? '#6366f1'
 
-    const checklistPercent = checklist.length > 0 ? checklistDone / checklist.length : 0
-    const circumference = 2 * Math.PI * 10
-    const dashOffset = circumference * (1 - checklistPercent)
+    const checklistPercent = checklist.length > 0 ? (checklistDone / checklist.length) * 100 : 0
+    const allChecklistDone = checklist.length > 0 && checklistDone === checklist.length
 
     return (
         <div
-            className="card"
             onClick={onClick}
             style={{
-                padding: '14px', cursor: 'pointer',
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                borderRadius: 12,
+                padding: '14px 16px',
+                cursor: 'pointer',
+                transition: 'all 0.18s ease',
+                position: 'relative',
                 borderLeft: `3px solid ${stageColor}`,
-                transition: 'all 0.2s ease',
-                position: 'relative', overflow: 'hidden'
+                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
             }}
             onMouseEnter={e => {
-                (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)'
-                    ; (e.currentTarget as HTMLElement).style.boxShadow = '0 8px 30px rgba(0,0,0,0.3)'
+                const el = e.currentTarget as HTMLElement
+                el.style.boxShadow = '0 4px 16px rgba(0,0,0,0.10)'
+                el.style.transform = 'translateY(-1px)'
+                el.style.borderColor = 'var(--border2)'
+                el.style.borderLeftColor = stageColor
             }}
             onMouseLeave={e => {
-                (e.currentTarget as HTMLElement).style.transform = 'translateY(0)'
-                    ; (e.currentTarget as HTMLElement).style.boxShadow = 'none'
+                const el = e.currentTarget as HTMLElement
+                el.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)'
+                el.style.transform = 'translateY(0)'
+                el.style.borderColor = 'var(--border)'
+                el.style.borderLeftColor = stageColor
             }}
         >
-            {/* Header row */}
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 10 }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)', lineHeight: 1.2, marginBottom: 2 }}>
-                        {project.event_code && <span style={{ color: 'var(--accent-light)', marginRight: 6 }}>{project.event_code}</span>}
-                        {project.name}
-                    </div>
-                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
-                        {project.client?.name && (
-                            <span style={{
-                                display: 'inline-block', fontSize: 10, fontWeight: 700,
-                                padding: '1px 6px', borderRadius: 4,
-                                background: `${project.client_color ?? '#6366f1'}15`,
-                                color: project.client_color ?? '#6366f1',
-                                letterSpacing: '0.02em'
-                            }}>{project.client.name}</span>
-                        )}
-                        {project.build_type && (
-                            <span style={{
-                                display: 'inline-block', fontSize: 10, fontWeight: 700,
-                                padding: '1px 6px', borderRadius: 4,
-                                background: 'rgba(99,102,241,0.12)', color: 'var(--accent-light)',
-                                letterSpacing: '0.02em'
-                            }}>{BUILD_TYPE_SHORT[project.build_type] ?? project.build_type}</span>
-                        )}
-                        {(project.build_addons ?? []).map(addon => (
-                            <span key={addon} style={{
-                                display: 'inline-block', fontSize: 10, fontWeight: 700,
-                                padding: '1px 6px', borderRadius: 4,
-                                background: 'rgba(245,158,11,0.12)', color: 'var(--warning)',
-                                letterSpacing: '0.02em'
-                            }}>+ {addon}</span>
-                        ))}
-                        {project.project_type && (
-                            <span style={{
-                                display: 'inline-block', fontSize: 10, fontWeight: 700,
-                                padding: '1px 6px', borderRadius: 4,
-                                background: 'rgba(34,197,94,0.1)', color: 'var(--success)',
-                                letterSpacing: '0.02em'
-                            }}>{project.project_type}</span>
-                        )}
-                    </div>
+            {/* Event code chip */}
+            {project.event_code && (
+                <div style={{ marginBottom: 8 }}>
+                    <span style={{
+                        display: 'inline-block',
+                        fontSize: 10, fontWeight: 700,
+                        letterSpacing: '0.06em',
+                        color: stageColor,
+                        background: `${stageColor}14`,
+                        border: `1px solid ${stageColor}30`,
+                        padding: '2px 8px',
+                        borderRadius: 5,
+                        fontFamily: '"Courier New", monospace',
+                        textTransform: 'uppercase'
+                    }}>
+                        {project.event_code}
+                    </span>
                 </div>
+            )}
 
-                {/* Checklist progress ring */}
-                {checklist.length > 0 && (
-                    <svg width="28" height="28" viewBox="0 0 28 28" style={{ flexShrink: 0 }}>
-                        <circle cx="14" cy="14" r="10" fill="none" stroke="var(--border)" strokeWidth="2.5" />
-                        <circle
-                            cx="14" cy="14" r="10" fill="none"
-                            stroke={checklistDone === checklist.length ? 'var(--success)' : 'var(--accent)'}
-                            strokeWidth="2.5"
-                            strokeDasharray={circumference}
-                            strokeDashoffset={dashOffset}
-                            strokeLinecap="round"
-                            className="ring-progress"
-                        />
-                        <text x="14" y="18" textAnchor="middle" style={{ fontSize: '7px', fontWeight: 700, fill: 'var(--text-muted)' }}>
-                            {checklistDone}/{checklist.length}
-                        </text>
-                    </svg>
+            {/* Project name */}
+            <div style={{
+                fontSize: 14, fontWeight: 700,
+                color: 'var(--text)',
+                lineHeight: 1.3,
+                marginBottom: 8,
+                letterSpacing: '-0.01em'
+            }}>
+                {project.name}
+            </div>
+
+            {/* Client + Stakeholder row */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
+                {project.client?.name && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <span style={{
+                            width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                            background: project.client_color ?? '#6366f1'
+                        }} />
+                        <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 500 }}>
+                            {project.client.name}
+                        </span>
+                    </div>
+                )}
+                {project.stakeholder_name && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <span style={{ fontSize: 12 }}>👤</span>
+                        <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 500 }}>
+                            {project.stakeholder_name}
+                        </span>
+                    </div>
                 )}
             </div>
 
-            {/* Meta row */}
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            {/* Divider */}
+            <div style={{ height: 1, background: 'var(--border)', marginBottom: 10 }} />
+
+            {/* Footer row: tasks + checklist + time + due */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+
+                {/* Tasks pill */}
                 {tasks.length > 0 && (
-                    <span style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 600 }}>
-                        ✓ {tasksDone}/{tasks.length}
-                    </span>
+                    <div style={{
+                        display: 'flex', alignItems: 'center', gap: 5,
+                        padding: '3px 8px', borderRadius: 20,
+                        background: tasksDone === tasks.length ? 'rgba(22,163,74,0.08)' : 'var(--surface2)',
+                        border: `1px solid ${tasksDone === tasks.length ? 'rgba(22,163,74,0.2)' : 'var(--border)'}`,
+                    }}>
+                        <span style={{
+                            fontSize: 11, fontWeight: 600,
+                            color: tasksDone === tasks.length ? '#16a34a' : 'var(--text-muted)'
+                        }}>
+                            ✓ {tasksDone}/{tasks.length}
+                        </span>
+                        {tasksInProgress > 0 && (
+                            <span style={{ fontSize: 10, color: '#d97706', fontWeight: 600 }}>· {tasksInProgress} active</span>
+                        )}
+                    </div>
                 )}
 
+                {/* Checklist progress bar pill */}
+                {checklist.length > 0 && (
+                    <div style={{
+                        display: 'flex', alignItems: 'center', gap: 5,
+                        padding: '3px 8px', borderRadius: 20,
+                        background: allChecklistDone ? 'rgba(22,163,74,0.08)' : 'var(--surface2)',
+                        border: `1px solid ${allChecklistDone ? 'rgba(22,163,74,0.2)' : 'var(--border)'}`,
+                        minWidth: 70
+                    }}>
+                        {/* Mini progress bar */}
+                        <div style={{ width: 30, height: 4, borderRadius: 2, background: 'var(--border2)', overflow: 'hidden' }}>
+                            <div style={{ width: `${checklistPercent}%`, height: '100%', borderRadius: 2, background: allChecklistDone ? '#16a34a' : '#6366f1', transition: 'width 0.3s' }} />
+                        </div>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: allChecklistDone ? '#16a34a' : 'var(--text-muted)' }}>
+                            {checklistDone}/{checklist.length}
+                        </span>
+                    </div>
+                )}
+
+                {/* Time tracked */}
                 {totalSeconds > 0 && (
-                    <span style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 600, fontFamily: 'monospace' }}>
+                    <span style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 600, fontFamily: 'monospace', marginLeft: 'auto' }}>
                         ⏱ {formatHours(totalSeconds)}
                     </span>
                 )}
 
+                {/* Due date */}
                 {project.due_date && (
                     <span style={{
-                        fontSize: 10, fontWeight: 600, marginLeft: 'auto',
-                        color: overdue ? 'var(--danger)' : 'var(--text-dim)'
+                        fontSize: 11, fontWeight: 600,
+                        color: overdue ? '#dc2626' : 'var(--text-dim)',
+                        background: overdue ? 'rgba(220,38,38,0.06)' : 'transparent',
+                        padding: overdue ? '1px 5px' : '0',
+                        borderRadius: 4,
+                        marginLeft: totalSeconds > 0 ? 0 : 'auto'
                     }}>
-                        {overdue ? '⚠ ' : '🟢 '}
+                        {overdue ? '⚠ ' : ''}
                         {new Date(project.due_date).toLocaleDateString('en', { month: 'short', day: 'numeric' })}
                     </span>
                 )}

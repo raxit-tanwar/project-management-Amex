@@ -110,63 +110,76 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
 
     return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-            {/* Topbar — hidden when embedded inside home page tabs */}
-            {!embedded && (
+            {/* Toolbar — full when standalone, compact when embedded */}
             <div style={{
-                padding: '16px 24px', borderBottom: '1px solid var(--border)',
-                display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0,
-                background: 'var(--surface)', boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+                padding: embedded ? '10px 16px' : '16px 24px',
+                borderBottom: '1px solid var(--border)',
+                display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0,
+                background: 'var(--surface)',
+                boxShadow: embedded ? 'none' : '0 1px 3px rgba(0,0,0,0.04)'
             }}>
-                <div>
-                    <h1 style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--text)' }}>Project Board</h1>
-                    <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                        {projects.length} project{projects.length !== 1 ? 's' : ''}
-                    </p>
-                </div>
+                {!embedded && (
+                    <div style={{ marginRight: 4 }}>
+                        <h1 style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--text)', margin: 0 }}>Project Board</h1>
+                        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{projects.length} project{projects.length !== 1 ? 's' : ''}</p>
+                    </div>
+                )}
 
-                <div style={{ flex: 1, display: 'flex', gap: 8, alignItems: 'center' }}>
+                {/* Search */}
+                <div style={{ position: 'relative', flex: embedded ? 1 : 'none' }}>
                     <input
                         className="input"
-                        placeholder="Search projects..."
+                        placeholder="Search projects…"
                         value={searchText}
                         onChange={e => setSearchText(e.target.value)}
-                        style={{ maxWidth: 240 }}
+                        style={{ maxWidth: embedded ? undefined : 220, paddingLeft: 32, height: 36, fontSize: 13 }}
                     />
-                    <select
-                        className="input"
-                        value={viewFilter}
-                        onChange={e => setViewFilter(e.target.value)}
-                        style={{ maxWidth: 160 }}
-                    >
-                        <option value="all">All projects</option>
-                        <option value="yesterday">Worked on yesterday</option>
-                        <option value="today">Working today</option>
-                    </select>
+                    <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim)', fontSize: 13 }}>🔍</span>
                 </div>
 
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    <div style={{ display: 'flex', borderRadius: 8, border: '1px solid var(--border)', overflow: 'hidden' }}>
-                        {(['board', 'list'] as const).map(mode => (
-                            <button
-                                key={mode}
-                                onClick={() => setViewMode(mode)}
-                                style={{
-                                    padding: '7px 14px', fontSize: 12, fontWeight: 600,
-                                    background: viewMode === mode ? 'var(--accent-dim)' : 'transparent',
-                                    color: viewMode === mode ? 'var(--accent-light)' : 'var(--text-muted)',
-                                    border: 'none', cursor: 'pointer', textTransform: 'capitalize', transition: 'all 0.15s'
-                                }}
-                            >
-                                {mode === 'board' ? '⊞' : '☰'} {mode}
-                            </button>
-                        ))}
-                    </div>
+                {/* Filter buttons — more visual than a dropdown */}
+                <div style={{ display: 'flex', gap: 4 }}>
+                    {([
+                        { value: 'all', label: 'All' },
+                        { value: 'yesterday', label: 'Yesterday' },
+                        { value: 'today', label: 'Today' },
+                    ] as const).map(f => (
+                        <button key={f.value} onClick={() => setViewFilter(f.value)}
+                            style={{
+                                padding: '5px 12px', borderRadius: 20, border: '1px solid',
+                                fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                                fontFamily: 'Inter, sans-serif', transition: 'all 0.15s',
+                                background: viewFilter === f.value ? '#6366f1' : 'transparent',
+                                color: viewFilter === f.value ? 'white' : 'var(--text-muted)',
+                                borderColor: viewFilter === f.value ? '#6366f1' : 'var(--border)',
+                            }}>
+                            {f.label}
+                        </button>
+                    ))}
+                </div>
+
+                {/* Board / List toggle */}
+                <div style={{ display: 'flex', borderRadius: 8, border: '1px solid var(--border)', overflow: 'hidden', marginLeft: 'auto' }}>
+                    {(['board', 'list'] as const).map(mode => (
+                        <button key={mode} onClick={() => setViewMode(mode)}
+                            style={{
+                                padding: '6px 12px', fontSize: 12, fontWeight: 600,
+                                background: viewMode === mode ? 'var(--accent-dim)' : 'transparent',
+                                color: viewMode === mode ? '#6366f1' : 'var(--text-muted)',
+                                border: 'none', cursor: 'pointer', textTransform: 'capitalize', transition: 'all 0.15s',
+                                fontFamily: 'Inter, sans-serif'
+                            }}>
+                            {mode === 'board' ? '⊞' : '☰'} {mode}
+                        </button>
+                    ))}
+                </div>
+
+                {!embedded && (
                     <button className="btn btn-primary btn-sm" onClick={() => setShowNewProject(true)}>
                         + New Project
                     </button>
-                </div>
+                )}
             </div>
-            )}
 
             {/* Board */}
             {viewMode === 'board' ? (

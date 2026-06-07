@@ -587,10 +587,6 @@ export default function HomePageClient({
             ) : (
                 /* Pipeline Board tab */
                 <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                    {/* Board sub-controls */}
-                    <div style={{ padding: '12px 24px 0', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-                        <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>{projects.filter(p => p.stage_id).length} projects</span>
-                    </div>
                     <BoardClient
                         userId={userId}
                         initialStages={initialStages as unknown as Parameters<typeof BoardClient>[0]['initialStages']}
