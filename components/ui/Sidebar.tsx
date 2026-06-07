@@ -3,15 +3,14 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signout } from '@/app/(auth)/actions'
-import { Clock, LayoutGrid, BarChart2, Settings } from 'lucide-react'
+import { Home, BarChart2, Settings } from 'lucide-react'
 
 interface SidebarProps {
     user: { email: string; name: string }
 }
 
 const navItems = [
-    { href: '/dashboard', label: 'Time Tracker', icon: Clock },
-    { href: '/board', label: 'Board', icon: LayoutGrid },
+    { href: '/dashboard', label: 'Homepage', icon: Home },
     { href: '/reports', label: 'Reports', icon: BarChart2 },
     { href: '/settings', label: 'Settings', icon: Settings },
 ]
@@ -37,7 +36,7 @@ export default function Sidebar({ user }: SidebarProps) {
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     boxShadow: '0 4px 12px rgba(99,102,241,0.3)'
                 }}>
-                    <Clock size={15} color="white" />
+                    <Home size={15} color="white" />
                 </div>
                 <span style={{ fontSize: 17, fontWeight: 800, letterSpacing: '-0.03em', color: 'var(--text)' }}>
                     Flow<span style={{ color: '#6366f1' }}>Desk</span>

@@ -28,9 +28,10 @@ interface BoardClientProps {
     initialStages: Stage[]
     initialProjects: Project[]
     initialClients: Client[]
+    embedded?: boolean   // when true: strips own greeting/padding, fits inside a tab
 }
 
-export default function BoardClient({ userId, userDisplayName, initialStages, initialProjects, initialClients }: BoardClientProps) {
+export default function BoardClient({ userId, userDisplayName, initialStages, initialProjects, initialClients, embedded }: BoardClientProps) {
     const supabase = createClient()
     const [stages] = useState(initialStages)
     const [projects, setProjects] = useState(initialProjects)
@@ -109,7 +110,8 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
 
     return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-            {/* Topbar */}
+            {/* Topbar — hidden when embedded inside home page tabs */}
+            {!embedded && (
             <div style={{
                 padding: '16px 24px', borderBottom: '1px solid var(--border)',
                 display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0,
@@ -164,6 +166,7 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                     </button>
                 </div>
             </div>
+            )}
 
             {/* Board */}
             {viewMode === 'board' ? (
