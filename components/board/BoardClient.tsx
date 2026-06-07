@@ -5,7 +5,6 @@ import { createClient } from '@/lib/supabase/client'
 import ProjectCard from './ProjectCard'
 import NewProjectModal from './NewProjectModal'
 import ProjectDetailPanel from './ProjectDetailPanel'
-import GlobalTimerBar from '../timer/GlobalTimerBar'
 import { isOverdue } from '@/lib/utils'
 
 interface Stage { id: string; name: string; color: string; position: number }
@@ -110,24 +109,14 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
 
     return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-            {/* Greeting Header */}
-            <div style={{ padding: '32px 28px 20px', background: 'var(--bg)' }}>
-                <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text)', letterSpacing: '-0.02em' }}>
-                    Good Morning {userDisplayName || 'Raxit'},
-                </h1>
-            </div>
-
-            <GlobalTimerBar projects={projects} />
-
-
             {/* Topbar */}
             <div style={{
-                padding: '20px 28px', borderBottom: '1px solid var(--border)',
+                padding: '16px 24px', borderBottom: '1px solid var(--border)',
                 display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0,
-                background: 'var(--surface)'
+                background: 'var(--surface)', boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
             }}>
                 <div>
-                    <h1 style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.02em' }}>Project Board</h1>
+                    <h1 style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--text)' }}>Project Board</h1>
                     <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
                         {projects.length} project{projects.length !== 1 ? 's' : ''}
                     </p>

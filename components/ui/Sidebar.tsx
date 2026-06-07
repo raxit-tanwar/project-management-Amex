@@ -3,15 +3,17 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signout } from '@/app/(auth)/actions'
+import { Clock, LayoutGrid, BarChart2, Settings } from 'lucide-react'
 
 interface SidebarProps {
     user: { email: string; name: string }
 }
 
 const navItems = [
-    { href: '/dashboard', label: 'Board', icon: '⚡' },
-    { href: '/reports', label: 'Reports', icon: '📊' },
-    { href: '/settings', label: 'Settings', icon: '⚙️' },
+    { href: '/dashboard', label: 'Time Tracker', icon: Clock },
+    { href: '/board', label: 'Board', icon: LayoutGrid },
+    { href: '/reports', label: 'Reports', icon: BarChart2 },
+    { href: '/settings', label: 'Settings', icon: Settings },
 ]
 
 export default function Sidebar({ user }: SidebarProps) {
@@ -23,8 +25,9 @@ export default function Sidebar({ user }: SidebarProps) {
             background: 'var(--surface)',
             borderRight: '1px solid var(--border)',
             display: 'flex', flexDirection: 'column',
-            padding: '24px 12px',
-            position: 'relative', zIndex: 10
+            padding: '20px 12px',
+            position: 'relative', zIndex: 10,
+            boxShadow: '1px 0 4px rgba(0,0,0,0.04)'
         }}>
             {/* Logo */}
             <Link href="/dashboard" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 36, padding: '0 8px' }}>
@@ -32,17 +35,20 @@ export default function Sidebar({ user }: SidebarProps) {
                     width: 30, height: 30, borderRadius: 9,
                     background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 14, boxShadow: '0 4px 12px rgba(99,102,241,0.4)'
-                }}>⚡</div>
+                    boxShadow: '0 4px 12px rgba(99,102,241,0.3)'
+                }}>
+                    <Clock size={15} color="white" />
+                </div>
                 <span style={{ fontSize: 17, fontWeight: 800, letterSpacing: '-0.03em', color: 'var(--text)' }}>
-                    Flow<span style={{ color: 'var(--accent-light)' }}>Desk</span>
+                    Flow<span style={{ color: '#6366f1' }}>Desk</span>
                 </span>
             </Link>
 
             {/* Nav */}
-            <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {navItems.map(item => {
-                    const active = item.href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(item.href)
+                    const active = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
+                    const Icon = item.icon
                     return (
                         <Link
                             key={item.href}
@@ -51,10 +57,10 @@ export default function Sidebar({ user }: SidebarProps) {
                                 display: 'flex', alignItems: 'center', gap: 10,
                                 padding: '9px 12px', borderRadius: 10,
                                 textDecoration: 'none',
-                                fontSize: 14, fontWeight: active ? 700 : 500,
-                                color: active ? 'var(--accent-light)' : 'var(--text-muted)',
-                                background: active ? 'var(--accent-dim)' : 'transparent',
-                                border: active ? '1px solid rgba(99,102,241,0.2)' : '1px solid transparent',
+                                fontSize: 14, fontWeight: active ? 600 : 500,
+                                color: active ? '#6366f1' : 'var(--text-muted)',
+                                background: active ? 'rgba(99,102,241,0.08)' : 'transparent',
+                                border: active ? '1px solid rgba(99,102,241,0.15)' : '1px solid transparent',
                                 transition: 'all 0.15s ease'
                             }}
                             onMouseEnter={e => {
@@ -64,7 +70,7 @@ export default function Sidebar({ user }: SidebarProps) {
                                 if (!active) (e.currentTarget as HTMLElement).style.background = 'transparent'
                             }}
                         >
-                            <span style={{ fontSize: 16 }}>{item.icon}</span>
+                            <Icon size={16} />
                             {item.label}
                         </Link>
                     )
