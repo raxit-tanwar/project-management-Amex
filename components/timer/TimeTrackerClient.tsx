@@ -3,9 +3,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useTimer } from '@/context/TimerContext'
-import { formatDuration } from '@/lib/utils'
 import ProjectDetailPanel from '@/components/board/ProjectDetailPanel'
-import { Play, Square, Tag, Calendar, Clock, ChevronDown, MoreHorizontal, Trash2, RefreshCw } from 'lucide-react'
+import {
+    Play, Square, Tag, Calendar, Clock, MoreHorizontal,
+    Trash2, Copy, Search, Plus, X, AlertTriangle, ChevronDown
+} from 'lucide-react'
 
 interface Stage { id: string; name: string; color: string }
 interface Project {
@@ -57,7 +59,6 @@ function getDayLabel(dateStr: string) {
     const today = new Date(); today.setHours(0, 0, 0, 0)
     const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1)
     const entryDay = new Date(d); entryDay.setHours(0, 0, 0, 0)
-
     if (entryDay.getTime() === today.getTime()) return 'Today'
     if (entryDay.getTime() === yesterday.getTime()) return 'Yesterday'
     return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
@@ -67,6 +68,344 @@ function getDayKey(dateStr: string) {
     return new Date(dateStr).toISOString().split('T')[0]
 }
 
+// ─── Searchable Project Dropdown ───────────────────────────────────────────────
+function ProjectDropdown({
+    projects,
+    selectedId,
+    disabled,
+    onSelect,
+    onCreateNew,
+}: {
+    projects: Project[]
+    selectedId: string | null
+    disabled: boolean
+    onSelect: (id: string | null) => void
+    onCreateNew: () => void
+}) {
+    const [open, setOpen] = useState(false)
+    const [search, setSearch] = useState('')
+    const ref = useRef<HTMLDivElement>(null)
+    const searchRef = useRef<HTMLInputElement>(null)
+
+    const selected = projects.find(p => p.id === selectedId)
+    const filtered = projects.filter(p => {
+        const q = search.toLowerCase()
+        return (
+            p.name.toLowerCase().includes(q) ||
+            (p.event_code ?? '').toLowerCase().includes(q)
+        )
+    })
+
+    useEffect(() => {
+        if (open) setTimeout(() => searchRef.current?.focus(), 50)
+    }, [open])
+
+    // Close on outside click
+    useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+        }
+        if (open) document.addEventListener('mousedown', handler)
+        return () => document.removeEventListener('mousedown', handler)
+    }, [open])
+
+    return (
+        <div ref={ref} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, padding: '0 16px', borderLeft: '1px solid var(--border)' }}>
+            <Tag size={15} color="var(--text-dim)" />
+            <button
+                disabled={disabled}
+                onClick={() => !disabled && setOpen(o => !o)}
+                style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    background: 'transparent', border: 'none', cursor: disabled ? 'not-allowed' : 'pointer',
+                    fontSize: 14, fontFamily: 'Inter, sans-serif', padding: '4px 0',
+                    color: selected ? '#6366f1' : 'var(--text-dim)',
+                    fontWeight: selected ? 600 : 400,
+                    opacity: disabled ? 0.6 : 1,
+                    minWidth: 140, maxWidth: 220, textAlign: 'left',
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+                }}
+            >
+                {selected ? (
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {selected.event_code ? `[${selected.event_code}] ` : ''}{selected.name}
+                    </span>
+                ) : 'Project'}
+                <ChevronDown size={13} style={{ flexShrink: 0, marginLeft: 2 }} />
+            </button>
+
+            {open && (
+                <div style={{
+                    position: 'absolute', top: '100%', left: 0, zIndex: 200, marginTop: 8,
+                    background: 'var(--surface)', border: '1px solid var(--border)',
+                    borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                    width: 280, overflow: 'hidden'
+                }}>
+                    {/* Search input */}
+                    <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Search size={14} color="var(--text-dim)" />
+                        <input
+                            ref={searchRef}
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                            placeholder="Search projects..."
+                            style={{
+                                flex: 1, border: 'none', outline: 'none', background: 'transparent',
+                                fontSize: 13, color: 'var(--text)', fontFamily: 'Inter, sans-serif'
+                            }}
+                        />
+                        {search && <button onClick={() => setSearch('')} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-dim)', padding: 0 }}><X size={13} /></button>}
+                    </div>
+
+                    {/* Project list */}
+                    <div style={{ maxHeight: 260, overflowY: 'auto' }}>
+                        {/* Clear selection */}
+                        {selectedId && (
+                            <button
+                                onClick={() => { onSelect(null); setOpen(false); setSearch('') }}
+                                style={{
+                                    width: '100%', padding: '9px 14px', display: 'flex', alignItems: 'center', gap: 8,
+                                    background: 'transparent', border: 'none', cursor: 'pointer',
+                                    fontSize: 13, color: 'var(--text-muted)', fontFamily: 'Inter, sans-serif', textAlign: 'left'
+                                }}
+                                onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--surface2)'}
+                                onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+                            >
+                                <X size={13} /> Clear selection
+                            </button>
+                        )}
+
+                        {filtered.length === 0 && (
+                            <div style={{ padding: '16px 14px', fontSize: 13, color: 'var(--text-dim)', textAlign: 'center' }}>
+                                No projects found
+                            </div>
+                        )}
+
+                        {filtered.map(p => (
+                            <button
+                                key={p.id}
+                                onClick={() => { onSelect(p.id); setOpen(false); setSearch('') }}
+                                style={{
+                                    width: '100%', padding: '9px 14px', display: 'flex', alignItems: 'center', gap: 10,
+                                    background: p.id === selectedId ? 'var(--accent-dim)' : 'transparent',
+                                    border: 'none', cursor: 'pointer',
+                                    fontSize: 13, fontFamily: 'Inter, sans-serif', textAlign: 'left',
+                                    transition: 'background 0.1s'
+                                }}
+                                onMouseEnter={e => { if (p.id !== selectedId) (e.currentTarget as HTMLElement).style.background = 'var(--surface2)' }}
+                                onMouseLeave={e => { if (p.id !== selectedId) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                            >
+                                {p.stage?.color && (
+                                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.stage.color, flexShrink: 0 }} />
+                                )}
+                                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {p.event_code && <span style={{ color: '#6366f1', fontWeight: 600, marginRight: 4 }}>[{p.event_code}]</span>}
+                                    <span style={{ color: 'var(--text)', fontWeight: p.id === selectedId ? 600 : 400 }}>{p.name}</span>
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Create new project */}
+                    <div style={{ borderTop: '1px solid var(--border)', padding: '8px' }}>
+                        <button
+                            onClick={() => { setOpen(false); setSearch(''); onCreateNew() }}
+                            style={{
+                                width: '100%', padding: '9px 12px', display: 'flex', alignItems: 'center', gap: 8,
+                                background: 'transparent', border: '1px dashed var(--border2)',
+                                borderRadius: 8, cursor: 'pointer',
+                                fontSize: 13, color: '#6366f1', fontFamily: 'Inter, sans-serif',
+                                fontWeight: 600, transition: 'all 0.15s'
+                            }}
+                            onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--accent-dim)'}
+                            onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+                        >
+                            <Plus size={14} /> Create new project
+                        </button>
+                    </div>
+                </div>
+            )}
+        </div>
+    )
+}
+
+// ─── Quick Create Project Modal ────────────────────────────────────────────────
+function QuickCreateModal({
+    onClose,
+    onCreate,
+}: {
+    onClose: () => void
+    onCreate: (project: Project) => void
+}) {
+    const [eventCode, setEventCode] = useState('')
+    const [projectName, setProjectName] = useState('')
+    const [clientName, setClientName] = useState('')
+    const [saving, setSaving] = useState(false)
+    const [error, setError] = useState('')
+    const supabase = createClient()
+
+    const handleCreate = async () => {
+        if (!eventCode.trim()) { setError('Event ID is required'); return }
+        if (!projectName.trim()) { setError('Project name is required'); return }
+        setSaving(true)
+        setError('')
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) { setError('Not authenticated'); setSaving(false); return }
+
+        const { data, error: err } = await supabase.from('projects').insert({
+            user_id: user.id,
+            name: projectName.trim(),
+            event_code: eventCode.trim().toUpperCase(),
+            client: clientName.trim() || null,
+            priority: 'Medium',
+        }).select('id, name, event_code, stage, tasks').single()
+
+        if (err) { setError(err.message); setSaving(false); return }
+        onCreate({ ...data, stage: null, tasks: [] } as Project)
+        onClose()
+    }
+
+    return (
+        <div style={{
+            position: 'fixed', inset: 0, zIndex: 500,
+            background: 'rgba(0,0,0,0.4)', display: 'flex',
+            alignItems: 'center', justifyContent: 'center', padding: 24
+        }}>
+            <div style={{
+                background: 'var(--surface)', borderRadius: 16,
+                border: '1px solid var(--border)',
+                boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
+                width: '100%', maxWidth: 440, padding: 28
+            }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                    <div>
+                        <h2 style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)', margin: 0 }}>Quick Create Project</h2>
+                        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                            Fill in full details later — you can start tracking now.
+                        </p>
+                    </div>
+                    <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}>
+                        <X size={18} />
+                    </button>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    <div>
+                        <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>
+                            Event / Project ID <span style={{ color: '#dc2626' }}>*</span>
+                        </label>
+                        <input
+                            className="input"
+                            value={eventCode}
+                            onChange={e => setEventCode(e.target.value)}
+                            placeholder="e.g. KVNNNFQKH8F"
+                            autoFocus
+                            style={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}
+                        />
+                    </div>
+                    <div>
+                        <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>
+                            Project Name <span style={{ color: '#dc2626' }}>*</span>
+                        </label>
+                        <input
+                            className="input"
+                            value={projectName}
+                            onChange={e => setProjectName(e.target.value)}
+                            placeholder="e.g. Rwanda Tax Retreat 2026"
+                            onKeyDown={e => e.key === 'Enter' && handleCreate()}
+                        />
+                    </div>
+                    <div>
+                        <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>
+                            Client Name <span style={{ color: 'var(--text-dim)', fontWeight: 400 }}>(optional)</span>
+                        </label>
+                        <input
+                            className="input"
+                            value={clientName}
+                            onChange={e => setClientName(e.target.value)}
+                            placeholder="e.g. Ivy M Manyasi"
+                            onKeyDown={e => e.key === 'Enter' && handleCreate()}
+                        />
+                    </div>
+
+                    {error && (
+                        <p style={{ fontSize: 12, color: '#dc2626', margin: 0 }}>{error}</p>
+                    )}
+
+                    <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+                        <button
+                            className="btn btn-ghost"
+                            onClick={onClose}
+                            style={{ flex: 1 }}
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            className="btn btn-primary"
+                            onClick={handleCreate}
+                            disabled={saving}
+                            style={{ flex: 1 }}
+                        >
+                            {saving ? 'Creating…' : 'Create & Select'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+// ─── Incomplete Project Guard Modal ───────────────────────────────────────────
+function CompleteProjectModal({
+    project,
+    onComplete,
+    onSkip,
+    onClose,
+}: {
+    project: Project
+    onComplete: () => void
+    onSkip: () => void
+    onClose: () => void
+}) {
+    return (
+        <div style={{
+            position: 'fixed', inset: 0, zIndex: 500,
+            background: 'rgba(0,0,0,0.4)', display: 'flex',
+            alignItems: 'center', justifyContent: 'center', padding: 24
+        }}>
+            <div style={{
+                background: 'var(--surface)', borderRadius: 16,
+                border: '1px solid var(--border)',
+                boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
+                width: '100%', maxWidth: 420, padding: 28
+            }}>
+                <div style={{ display: 'flex', gap: 14, marginBottom: 20 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(245,158,11,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <AlertTriangle size={20} color="#d97706" />
+                    </div>
+                    <div>
+                        <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', margin: 0 }}>Complete Project Details</h2>
+                        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.5 }}>
+                            <strong style={{ color: 'var(--text)' }}>{project.name}</strong> was created quickly and still needs full details (stage, priority, dates) before logging more time.
+                        </p>
+                    </div>
+                </div>
+                <div style={{ display: 'flex', gap: 10 }}>
+                    <button className="btn btn-ghost" onClick={onClose} style={{ flex: 1 }}>Cancel</button>
+                    <button className="btn btn-ghost" onClick={onSkip}
+                        style={{ flex: 1, color: '#d97706', borderColor: 'rgba(245,158,11,0.3)' }}>
+                        Skip for now
+                    </button>
+                    <button className="btn btn-primary" onClick={onComplete} style={{ flex: 1 }}>
+                        Fill Details
+                    </button>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+// ─── Main Component ────────────────────────────────────────────────────────────
 export default function TimeTrackerClient({ userId, userDisplayName, initialProjects, initialTimeEntries }: TimeTrackerClientProps) {
     const supabase = createClient()
     const { timer, startTimer, stopTimer, selection, setSelection, displayTime } = useTimer()
@@ -75,9 +414,30 @@ export default function TimeTrackerClient({ userId, userDisplayName, initialProj
     const [timeEntries, setTimeEntries] = useState(initialTimeEntries)
     const [description, setDescription] = useState('')
     const [loading, setLoading] = useState(false)
+
+    // Project detail panel
     const [selectedProjectForDetail, setSelectedProjectForDetail] = useState<Project | null>(null)
     const [fullProjectData, setFullProjectData] = useState<Project | null>(null)
+
+    // Entry actions menu
     const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+
+    // Modals
+    const [showQuickCreate, setShowQuickCreate] = useState(false)
+    const [incompletePrompt, setIncompletePrompt] = useState<Project | null>(null)
+    const [pendingStart, setPendingStart] = useState(false)
+
+    // Track quick-created project IDs (need completion before 2nd timer)
+    const [quickCreatedIds, setQuickCreatedIds] = useState<Set<string>>(new Set())
+
+    // Stages & clients for ProjectDetailPanel
+    const [stages, setStages] = useState<Stage[]>([])
+    const [clients, setClients] = useState<{ id: string; name: string }[]>([])
+
+    useEffect(() => {
+        supabase.from('stages').select('*').eq('user_id', userId).order('position').then(({ data }) => { if (data) setStages(data) })
+        supabase.from('clients').select('*').eq('user_id', userId).order('name').then(({ data }) => { if (data) setClients(data) })
+    }, [supabase, userId])
 
     // Sync description from running timer
     useEffect(() => {
@@ -99,7 +459,7 @@ export default function TimeTrackerClient({ userId, userDisplayName, initialProj
         if (data) setTimeEntries(data as unknown as TimeEntry[])
     }, [supabase, userId])
 
-    const handleStart = useCallback(() => {
+    const doStart = useCallback(() => {
         if (!selection.projectId) return
         const p = projects.find(pr => pr.id === selection.projectId)
         const t = p?.tasks?.find(tk => tk.id === selection.taskId)
@@ -112,6 +472,17 @@ export default function TimeTrackerClient({ userId, userDisplayName, initialProj
         })
     }, [selection, projects, description, startTimer])
 
+    const handleStart = useCallback(() => {
+        if (!selection.projectId) return
+        // Check if quick-created & has existing entries
+        const hasEntries = timeEntries.some(e => e.project_id === selection.projectId)
+        if (quickCreatedIds.has(selection.projectId) && hasEntries) {
+            const p = projects.find(pr => pr.id === selection.projectId)
+            if (p) { setIncompletePrompt(p); setPendingStart(true); return }
+        }
+        doStart()
+    }, [selection.projectId, timeEntries, quickCreatedIds, projects, doStart])
+
     const handleStop = useCallback(async () => {
         setLoading(true)
         await stopTimer(description || undefined)
@@ -123,6 +494,25 @@ export default function TimeTrackerClient({ userId, userDisplayName, initialProj
     const handleDelete = useCallback(async (id: string) => {
         await supabase.from('time_entries').delete().eq('id', id)
         setTimeEntries(prev => prev.filter(e => e.id !== id))
+        setOpenMenuId(null)
+    }, [supabase])
+
+    const handleDuplicate = useCallback(async (entry: TimeEntry) => {
+        const now = new Date()
+        const dur = entry.duration_seconds || 0
+        const startedAt = new Date(now.getTime() - dur * 1000)
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+        const { data } = await supabase.from('time_entries').insert({
+            user_id: user.id,
+            project_id: entry.project_id,
+            task_id: entry.task_id,
+            started_at: startedAt.toISOString(),
+            ended_at: now.toISOString(),
+            duration_seconds: dur,
+            notes: entry.notes,
+        }).select('id, started_at, ended_at, duration_seconds, notes, project_id, task_id, project:projects(id, name, event_code, stage:stages(name, color))').single()
+        if (data) setTimeEntries(prev => [data as unknown as TimeEntry, ...prev])
         setOpenMenuId(null)
     }, [supabase])
 
@@ -142,8 +532,7 @@ export default function TimeTrackerClient({ userId, userDisplayName, initialProj
 
     const openProjectDetail = useCallback(async (projectId: string) => {
         const { data } = await supabase.from('projects').select(`
-            *,
-            stage:stages(id, name, color),
+            *, stage:stages(id, name, color),
             tasks(id, status, name, estimated_minutes),
             checklist_items(id, checked, text, position),
             time_entries(duration_seconds, started_at)
@@ -153,6 +542,12 @@ export default function TimeTrackerClient({ userId, userDisplayName, initialProj
             setSelectedProjectForDetail(data as Project)
         }
     }, [supabase])
+
+    const handleQuickCreated = (project: Project) => {
+        setProjects(prev => [project, ...prev])
+        setQuickCreatedIds(prev => new Set([...prev, project.id]))
+        setSelection({ projectId: project.id, taskId: null })
+    }
 
     // Group entries by day
     const grouped: { key: string; label: string; entries: TimeEntry[]; total: number }[] = []
@@ -171,26 +566,23 @@ export default function TimeTrackerClient({ userId, userDisplayName, initialProj
     const selectedProject = projects.find(p => p.id === selection.projectId)
     const tasks = selectedProject?.tasks || []
 
-    // Get all stages for the ProjectDetailPanel
-    const [stages, setStages] = useState<Stage[]>([])
-    const [clients, setClients] = useState<{ id: string; name: string }[]>([])
-    useEffect(() => {
-        supabase.from('stages').select('*').eq('user_id', userId).order('position').then(({ data }) => { if (data) setStages(data) })
-        supabase.from('clients').select('*').eq('user_id', userId).order('name').then(({ data }) => { if (data) setClients(data) })
-    }, [supabase, userId])
+    const weekTotal = timeEntries.reduce((s, e) => s + (e.duration_seconds || 0), 0)
 
     return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg)' }}>
-            {/* Top Timer Bar - Clockify style */}
+
+            {/* ── Sticky Timer Bar ─────────────────────────────────────────── */}
             <div style={{
                 background: 'var(--surface)',
-                borderBottom: '1px solid var(--border)',
-                padding: '0 24px',
+                borderBottom: '2px solid var(--border)',
+                padding: '0 20px',
                 flexShrink: 0,
-                boxShadow: '0 1px 4px rgba(0,0,0,0.06)'
+                position: 'sticky', top: 0, zIndex: 50,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.07)'
             }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 0, height: 64 }}>
-                    {/* Description Input */}
+                <div style={{ display: 'flex', alignItems: 'center', height: 68 }}>
+
+                    {/* Description */}
                     <input
                         value={description}
                         onChange={e => setDescription(e.target.value)}
@@ -200,47 +592,32 @@ export default function TimeTrackerClient({ userId, userDisplayName, initialProj
                         style={{
                             flex: 1, border: 'none', outline: 'none', background: 'transparent',
                             fontSize: 15, color: 'var(--text)', fontFamily: 'Inter, sans-serif',
-                            fontWeight: 400,
+                            minWidth: 0
                         }}
                     />
 
-                    {/* Project selector */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 16px', borderLeft: '1px solid var(--border)' }}>
-                        <Tag size={15} color="var(--text-dim)" />
-                        <select
-                            value={selection.projectId || ''}
-                            onChange={e => setSelection({ projectId: e.target.value || null, taskId: null })}
-                            disabled={timer.isRunning}
-                            style={{
-                                border: 'none', outline: 'none', background: 'transparent',
-                                fontSize: 14, color: selection.projectId ? 'var(--accent-light)' : 'var(--text-dim)',
-                                fontFamily: 'Inter, sans-serif', cursor: 'pointer', fontWeight: selection.projectId ? 600 : 400,
-                                minWidth: 140
-                            }}
-                        >
-                            <option value="">Project</option>
-                            {projects.map(p => (
-                                <option key={p.id} value={p.id}>
-                                    {p.event_code ? `[${p.event_code}] ` : ''}{p.name}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
+                    {/* Project searchable dropdown */}
+                    <ProjectDropdown
+                        projects={projects}
+                        selectedId={selection.projectId}
+                        disabled={timer.isRunning}
+                        onSelect={id => setSelection({ projectId: id, taskId: null })}
+                        onCreateNew={() => setShowQuickCreate(true)}
+                    />
 
-                    {/* Task selector (if project selected) */}
-                    {tasks.length > 0 && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 16px', borderLeft: '1px solid var(--border)' }}>
+                    {/* Task selector */}
+                    {tasks.length > 0 && !timer.isRunning && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 14px', borderLeft: '1px solid var(--border)' }}>
                             <select
                                 value={selection.taskId || ''}
                                 onChange={e => setSelection({ ...selection, taskId: e.target.value || null })}
-                                disabled={timer.isRunning}
                                 style={{
                                     border: 'none', outline: 'none', background: 'transparent',
                                     fontSize: 14, color: selection.taskId ? 'var(--text)' : 'var(--text-dim)',
-                                    fontFamily: 'Inter, sans-serif', cursor: 'pointer', minWidth: 120
+                                    fontFamily: 'Inter, sans-serif', cursor: 'pointer', minWidth: 110
                                 }}
                             >
-                                <option value="">Task (optional)</option>
+                                <option value="">Task (opt.)</option>
                                 {tasks.map(t => (
                                     <option key={t.id} value={t.id}>{t.name}</option>
                                 ))}
@@ -248,28 +625,32 @@ export default function TimeTrackerClient({ userId, userDisplayName, initialProj
                         </div>
                     )}
 
-                    {/* Timer display */}
+                    {/* Timer display — fixed width, no layout shift */}
                     <div style={{
-                        padding: '0 20px', borderLeft: '1px solid var(--border)',
-                        fontSize: 20, fontWeight: 700, fontFamily: 'monospace',
+                        padding: '0 18px', borderLeft: '1px solid var(--border)',
+                        borderRight: '1px solid var(--border)',
+                        fontSize: 22, fontWeight: 800, fontFamily: '"Courier New", monospace',
                         color: timer.isRunning ? '#16a34a' : 'var(--text-dim)',
-                        letterSpacing: '0.05em', minWidth: 110, textAlign: 'center'
+                        letterSpacing: '0.04em',
+                        width: 118, textAlign: 'center', flexShrink: 0,
+                        transition: 'color 0.3s'
                     }}>
                         {displayTime}
                     </div>
 
-                    {/* Start / Stop */}
-                    <div style={{ paddingLeft: 16, borderLeft: '1px solid var(--border)' }}>
+                    {/* Start / Stop button */}
+                    <div style={{ paddingLeft: 16 }}>
                         {timer.isRunning ? (
                             <button
                                 onClick={handleStop}
                                 disabled={loading}
+                                title="Stop timer"
                                 style={{
-                                    width: 44, height: 44, borderRadius: '50%',
+                                    width: 46, height: 46, borderRadius: '50%',
                                     background: '#dc2626', border: 'none', cursor: 'pointer',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    boxShadow: '0 2px 8px rgba(220,38,38,0.3)',
-                                    transition: 'all 0.15s'
+                                    boxShadow: '0 2px 10px rgba(220,38,38,0.35)',
+                                    transition: 'all 0.15s', flexShrink: 0
                                 }}
                             >
                                 <Square size={18} color="white" fill="white" />
@@ -278,55 +659,53 @@ export default function TimeTrackerClient({ userId, userDisplayName, initialProj
                             <button
                                 onClick={handleStart}
                                 disabled={!selection.projectId}
+                                title={selection.projectId ? 'Start timer' : 'Select a project first'}
                                 style={{
-                                    width: 44, height: 44, borderRadius: '50%',
-                                    background: selection.projectId ? '#6366f1' : 'var(--border)',
-                                    border: 'none', cursor: selection.projectId ? 'pointer' : 'not-allowed',
+                                    width: 46, height: 46, borderRadius: '50%',
+                                    background: selection.projectId ? '#6366f1' : '#e5e7eb',
+                                    border: 'none',
+                                    cursor: selection.projectId ? 'pointer' : 'not-allowed',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    boxShadow: selection.projectId ? '0 2px 8px rgba(99,102,241,0.35)' : 'none',
-                                    transition: 'all 0.15s'
+                                    boxShadow: selection.projectId ? '0 2px 10px rgba(99,102,241,0.4)' : 'none',
+                                    transition: 'all 0.15s', flexShrink: 0
                                 }}
                             >
-                                <Play size={18} color="white" fill="white" style={{ marginLeft: 2 }} />
+                                <Play size={18} color={selection.projectId ? 'white' : '#9ca3af'} fill={selection.projectId ? 'white' : '#9ca3af'} style={{ marginLeft: 2 }} />
                             </button>
                         )}
                     </div>
                 </div>
             </div>
 
-            {/* Greeting */}
-            <div style={{ padding: '24px 28px 8px' }}>
-                <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.02em' }}>
-                    Good {new Date().getHours() < 12 ? 'Morning' : new Date().getHours() < 17 ? 'Afternoon' : 'Evening'}, {userDisplayName || 'there'} 👋
-                </h1>
-                <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
-                    {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                </p>
+            {/* ── Greeting & week total ─────────────────────────────────────── */}
+            <div style={{ padding: '22px 28px 4px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+                <div>
+                    <h1 style={{ fontSize: 21, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.02em', margin: 0 }}>
+                        Good {new Date().getHours() < 12 ? 'Morning' : new Date().getHours() < 17 ? 'Afternoon' : 'Evening'}, {userDisplayName || 'there'} 👋
+                    </h1>
+                    <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
+                        {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                    </p>
+                </div>
+                {weekTotal > 0 && (
+                    <span style={{
+                        fontSize: 12, fontWeight: 600, color: '#6366f1',
+                        background: 'rgba(99,102,241,0.08)', padding: '5px 14px',
+                        borderRadius: 20, border: '1px solid rgba(99,102,241,0.2)',
+                        flexShrink: 0
+                    }}>
+                        Week total: {formatDurationHM(weekTotal)}
+                    </span>
+                )}
             </div>
 
-            {/* Week total pill */}
-            {timeEntries.length > 0 && (() => {
-                const weekTotal = timeEntries.reduce((s, e) => s + (e.duration_seconds || 0), 0)
-                return (
-                    <div style={{ padding: '0 28px 16px' }}>
-                        <span style={{
-                            fontSize: 12, fontWeight: 600, color: 'var(--accent-light)',
-                            background: 'var(--accent-dim)', padding: '4px 12px', borderRadius: 20,
-                            border: '1px solid rgba(99,102,241,0.2)'
-                        }}>
-                            Week total: {formatDurationHM(weekTotal)}
-                        </span>
-                    </div>
-                )
-            })()}
-
-            {/* Time entries list */}
-            <div style={{ flex: 1, overflow: 'auto', padding: '0 20px 24px' }}>
+            {/* ── Time entries list ─────────────────────────────────────────── */}
+            <div style={{ flex: 1, overflow: 'auto', padding: '12px 20px 32px' }}>
                 {grouped.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '80px 20px', color: 'var(--text-dim)' }}>
-                        <Clock size={40} style={{ margin: '0 auto 16px', opacity: 0.3 }} />
+                        <Clock size={40} style={{ margin: '0 auto 16px', opacity: 0.25, display: 'block' }} />
                         <p style={{ fontWeight: 600, fontSize: 15, marginBottom: 8, color: 'var(--text-muted)' }}>No time entries yet</p>
-                        <p style={{ fontSize: 13 }}>Select a project above and press Start to begin tracking.</p>
+                        <p style={{ fontSize: 13 }}>Select a project above and press ▶ Start to begin tracking.</p>
                     </div>
                 ) : (
                     grouped.map(group => (
@@ -334,23 +713,21 @@ export default function TimeTrackerClient({ userId, userDisplayName, initialProj
                             {/* Day header */}
                             <div style={{
                                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                                padding: '8px 16px', marginBottom: 4
+                                padding: '6px 14px', marginBottom: 6
                             }}>
-                                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)' }}>
+                                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                                     {group.label}
                                 </span>
-                                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)' }}>
+                                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)' }}>
                                     Total: {formatDurationHM(group.total)}
                                 </span>
                             </div>
 
-                            {/* Entry rows */}
+                            {/* Entries card */}
                             <div style={{
-                                background: 'var(--surface)',
-                                border: '1px solid var(--border)',
-                                borderRadius: 12,
-                                overflow: 'hidden',
-                                boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+                                background: 'var(--surface)', border: '1px solid var(--border)',
+                                borderRadius: 12, overflow: 'hidden',
+                                boxShadow: '0 1px 4px rgba(0,0,0,0.04)'
                             }}>
                                 {group.entries.map((entry, idx) => {
                                     const proj = entry.project
@@ -358,8 +735,8 @@ export default function TimeTrackerClient({ userId, userDisplayName, initialProj
                                         <div
                                             key={entry.id}
                                             style={{
-                                                display: 'flex', alignItems: 'center', gap: 16,
-                                                padding: '14px 20px',
+                                                display: 'flex', alignItems: 'center', gap: 14,
+                                                padding: '13px 18px',
                                                 borderBottom: idx < group.entries.length - 1 ? '1px solid var(--border)' : 'none',
                                                 transition: 'background 0.1s',
                                             }}
@@ -376,7 +753,7 @@ export default function TimeTrackerClient({ userId, userDisplayName, initialProj
                                                 </span>
                                             </div>
 
-                                            {/* Project / Event Code badge */}
+                                            {/* Event code badge — click to open project detail */}
                                             {proj && (
                                                 <button
                                                     onClick={() => proj.id && openProjectDetail(proj.id)}
@@ -384,75 +761,66 @@ export default function TimeTrackerClient({ userId, userDisplayName, initialProj
                                                     style={{
                                                         display: 'flex', alignItems: 'center', gap: 6,
                                                         padding: '4px 10px', borderRadius: 6, border: 'none',
-                                                        background: proj.stage?.color ? `${proj.stage.color}15` : 'var(--accent-dim)',
-                                                        cursor: 'pointer', flexShrink: 0,
-                                                        transition: 'all 0.15s'
+                                                        background: proj.stage?.color ? `${proj.stage.color}18` : 'rgba(99,102,241,0.1)',
+                                                        cursor: 'pointer', flexShrink: 0, transition: 'opacity 0.15s'
                                                     }}
-                                                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.75'}
+                                                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
                                                     onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
                                                 >
                                                     {proj.stage?.color && (
-                                                        <span style={{
-                                                            width: 8, height: 8, borderRadius: '50%',
-                                                            background: proj.stage.color, flexShrink: 0, display: 'inline-block'
-                                                        }} />
+                                                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: proj.stage.color, flexShrink: 0, display: 'inline-block' }} />
                                                     )}
-                                                    <span style={{
-                                                        fontSize: 12, fontWeight: 600,
-                                                        color: proj.stage?.color || 'var(--accent-light)',
-                                                        whiteSpace: 'nowrap'
-                                                    }}>
-                                                        {proj.event_code ? `${proj.event_code}` : proj.name}
+                                                    <span style={{ fontSize: 12, fontWeight: 600, color: proj.stage?.color || '#6366f1', whiteSpace: 'nowrap' }}>
+                                                        {proj.event_code || proj.name}
                                                     </span>
                                                 </button>
                                             )}
 
                                             {/* Time range */}
-                                            <div style={{
-                                                display: 'flex', alignItems: 'center', gap: 6,
-                                                fontSize: 13, color: 'var(--text-muted)', flexShrink: 0
-                                            }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: 'var(--text-muted)', flexShrink: 0 }}>
                                                 <Calendar size={13} />
                                                 <span>
                                                     {formatTime(entry.started_at)}
-                                                    {entry.ended_at ? ` - ${formatTime(entry.ended_at)}` : ' - running'}
+                                                    {entry.ended_at ? ` – ${formatTime(entry.ended_at)}` : ' – running'}
                                                 </span>
                                             </div>
 
                                             {/* Duration */}
                                             <div style={{
-                                                fontSize: 16, fontWeight: 700, color: 'var(--text)',
-                                                fontFamily: 'monospace', minWidth: 52, textAlign: 'right', flexShrink: 0
+                                                fontSize: 15, fontWeight: 700, color: 'var(--text)',
+                                                fontFamily: '"Courier New", monospace',
+                                                minWidth: 52, textAlign: 'right', flexShrink: 0
                                             }}>
                                                 {entry.duration_seconds ? formatDurationHM(entry.duration_seconds) : '—'}
                                             </div>
 
-                                            {/* Resume button */}
+                                            {/* Resume */}
                                             <button
                                                 onClick={() => handleResume(entry)}
                                                 disabled={timer.isRunning}
-                                                title="Resume"
+                                                title="Resume this entry"
                                                 style={{
-                                                    width: 32, height: 32, borderRadius: '50%', border: '1px solid var(--border)',
-                                                    background: 'transparent', cursor: timer.isRunning ? 'not-allowed' : 'pointer',
+                                                    width: 32, height: 32, borderRadius: '50%',
+                                                    border: '1px solid var(--border)', background: 'transparent',
+                                                    cursor: timer.isRunning ? 'not-allowed' : 'pointer',
                                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                    opacity: timer.isRunning ? 0.4 : 1, transition: 'all 0.15s', flexShrink: 0,
-                                                    color: 'var(--text-muted)'
+                                                    opacity: timer.isRunning ? 0.35 : 1, transition: 'all 0.15s',
+                                                    flexShrink: 0, color: 'var(--text-muted)'
                                                 }}
                                                 onMouseEnter={e => { if (!timer.isRunning) (e.currentTarget as HTMLElement).style.background = 'var(--surface2)' }}
                                                 onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
                                             >
-                                                <Play size={12} fill="currentColor" />
+                                                <Play size={11} fill="currentColor" />
                                             </button>
 
-                                            {/* More menu */}
+                                            {/* ⋯ More menu */}
                                             <div style={{ position: 'relative', flexShrink: 0 }}>
                                                 <button
                                                     onClick={() => setOpenMenuId(openMenuId === entry.id ? null : entry.id)}
                                                     style={{
-                                                        width: 32, height: 32, borderRadius: '50%', border: '1px solid var(--border)',
-                                                        background: 'transparent', cursor: 'pointer',
-                                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                        width: 32, height: 32, borderRadius: '50%',
+                                                        border: '1px solid var(--border)', background: 'transparent',
+                                                        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
                                                         color: 'var(--text-muted)', transition: 'all 0.15s'
                                                     }}
                                                     onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--surface2)'}
@@ -460,21 +828,36 @@ export default function TimeTrackerClient({ userId, userDisplayName, initialProj
                                                 >
                                                     <MoreHorizontal size={14} />
                                                 </button>
+
                                                 {openMenuId === entry.id && (
                                                     <div style={{
                                                         position: 'absolute', right: 0, top: 36, zIndex: 100,
                                                         background: 'var(--surface)', border: '1px solid var(--border)',
-                                                        borderRadius: 10, boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
-                                                        minWidth: 140, overflow: 'hidden'
+                                                        borderRadius: 10, boxShadow: '0 6px 20px rgba(0,0,0,0.1)',
+                                                        minWidth: 160, overflow: 'hidden'
                                                     }}>
+                                                        <button
+                                                            onClick={() => handleDuplicate(entry)}
+                                                            style={{
+                                                                width: '100%', padding: '10px 16px',
+                                                                display: 'flex', alignItems: 'center', gap: 9,
+                                                                background: 'transparent', border: 'none', cursor: 'pointer',
+                                                                fontSize: 13, color: 'var(--text)', fontFamily: 'Inter, sans-serif', textAlign: 'left'
+                                                            }}
+                                                            onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--surface2)'}
+                                                            onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+                                                        >
+                                                            <Copy size={13} />
+                                                            Duplicate entry
+                                                        </button>
+                                                        <div style={{ height: 1, background: 'var(--border)' }} />
                                                         <button
                                                             onClick={() => handleDelete(entry.id)}
                                                             style={{
                                                                 width: '100%', padding: '10px 16px',
-                                                                display: 'flex', alignItems: 'center', gap: 8,
+                                                                display: 'flex', alignItems: 'center', gap: 9,
                                                                 background: 'transparent', border: 'none', cursor: 'pointer',
-                                                                fontSize: 13, color: '#dc2626', fontFamily: 'Inter, sans-serif',
-                                                                textAlign: 'left'
+                                                                fontSize: 13, color: '#dc2626', fontFamily: 'Inter, sans-serif', textAlign: 'left'
                                                             }}
                                                             onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(220,38,38,0.05)'}
                                                             onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
@@ -494,11 +877,36 @@ export default function TimeTrackerClient({ userId, userDisplayName, initialProj
                 )}
             </div>
 
-            {/* Click outside to close menu */}
+            {/* Click outside to close entry menu */}
             {openMenuId && (
-                <div
-                    style={{ position: 'fixed', inset: 0, zIndex: 99 }}
-                    onClick={() => setOpenMenuId(null)}
+                <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setOpenMenuId(null)} />
+            )}
+
+            {/* Quick Create Modal */}
+            {showQuickCreate && (
+                <QuickCreateModal
+                    onClose={() => setShowQuickCreate(false)}
+                    onCreate={handleQuickCreated}
+                />
+            )}
+
+            {/* Incomplete project guard */}
+            {incompletePrompt && (
+                <CompleteProjectModal
+                    project={incompletePrompt}
+                    onClose={() => { setIncompletePrompt(null); setPendingStart(false) }}
+                    onSkip={() => {
+                        setIncompletePrompt(null)
+                        // Remove from quick-created so they won't be prompted again
+                        setQuickCreatedIds(prev => { const n = new Set(prev); n.delete(incompletePrompt.id); return n })
+                        if (pendingStart) doStart()
+                        setPendingStart(false)
+                    }}
+                    onComplete={() => {
+                        setIncompletePrompt(null)
+                        setPendingStart(false)
+                        openProjectDetail(incompletePrompt.id)
+                    }}
                 />
             )}
 
@@ -513,7 +921,13 @@ export default function TimeTrackerClient({ userId, userDisplayName, initialProj
                     onUpdated={async () => {
                         setSelectedProjectForDetail(null)
                         setFullProjectData(null)
+                        // If they just completed a quick-created project, remove from set
+                        if (fullProjectData?.id) {
+                            setQuickCreatedIds(prev => { const n = new Set(prev); n.delete(fullProjectData.id as string); return n })
+                        }
                         await refreshEntries()
+                        // Resume timer if it was pending
+                        if (pendingStart) { doStart(); setPendingStart(false) }
                     }}
                 />
             )}
