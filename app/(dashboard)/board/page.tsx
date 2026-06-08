@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import BoardClient from '@/components/board/BoardClient'
 
+export const dynamic = 'force-dynamic'
+
 export default async function BoardPage() {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()

@@ -33,7 +33,7 @@ interface BoardClientProps {
 
 export default function BoardClient({ userId, userDisplayName, initialStages, initialProjects, initialClients, embedded }: BoardClientProps) {
     const supabase = createClient()
-    const [stages] = useState(initialStages)
+    const [stages] = useState(() => [...initialStages].sort((a, b) => a.position - b.position))
     const [projects, setProjects] = useState(initialProjects)
     const [clients, setClients] = useState(initialClients)
     const [showNewProject, setShowNewProject] = useState(false)
