@@ -258,6 +258,7 @@ export default function HomePageClient({
     const [timeEntries, setTimeEntries] = useState(initialTimeEntries)
     const [description, setDescription] = useState('')
     const [loading, setLoading] = useState(false)
+    const [editingEntry, setEditingEntry] = useState<{ id: string; notes: string } | null>(null)
 
     // Detail panel
     const [detailProject, setDetailProject] = useState<Project | null>(null)
@@ -272,13 +273,13 @@ export default function HomePageClient({
     const [pendingStart, setPendingStart] = useState(false)
     const [quickCreatedIds, setQuickCreatedIds] = useState<Set<string>>(new Set())
 
-    // Sync description when timer is running
+    // Sync description and project selection when timer first starts
     useEffect(() => {
         if (timer.isRunning) {
-            setDescription(timer.taskName || '')
             if (timer.projectId) setSelection({ projectId: timer.projectId, taskId: timer.taskId ?? null })
         }
-    }, [timer.isRunning, timer.taskName, timer.projectId, timer.taskId, setSelection])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [timer.isRunning])
 
     const refreshEntries = useCallback(async () => {
         const since = new Date(); since.setDate(since.getDate() - 7)
@@ -334,6 +335,12 @@ export default function HomePageClient({
         }).select('id, started_at, ended_at, duration_seconds, notes, project_id, task_id, project:projects(id, name, event_code, stage:stages(name, color))').single()
         if (data) setTimeEntries(prev => [data as unknown as TimeEntry, ...prev])
         setMenuState(null)
+    }, [supabase])
+
+    const handleSaveEntryNotes = useCallback(async (id: string, notes: string) => {
+        await supabase.from('time_entries').update({ notes: notes || null }).eq('id', id)
+        setTimeEntries(prev => prev.map(e => e.id === id ? { ...e, notes: notes || null } : e))
+        setEditingEntry(null)
     }, [supabase])
 
     const handleResume = useCallback((entry: TimeEntry) => {
@@ -410,7 +417,6 @@ export default function HomePageClient({
                         onChange={e => setDescription(e.target.value)}
                         onKeyDown={e => e.key === 'Enter' && !timer.isRunning && handleStart()}
                         placeholder="What are you working on?"
-                        disabled={timer.isRunning}
                         style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontSize: 14, color: 'var(--text)', fontFamily: 'Inter, sans-serif', minWidth: 0 }}
                     />
 
@@ -530,9 +536,26 @@ export default function HomePageClient({
 
                                                 {/* Description */}
                                                 <div style={{ flex: 1, minWidth: 0 }}>
-                                                    <span style={{ fontSize: 14, color: entry.notes ? 'var(--text)' : 'var(--text-dim)', fontStyle: entry.notes ? 'normal' : 'italic' }}>
-                                                        {entry.notes || 'No description'}
-                                                    </span>
+                                                    {editingEntry?.id === entry.id ? (
+                                                        <input
+                                                            autoFocus
+                                                            value={editingEntry.notes}
+                                                            onChange={e => setEditingEntry({ id: entry.id, notes: e.target.value })}
+                                                            onBlur={() => handleSaveEntryNotes(entry.id, editingEntry.notes)}
+                                                            onKeyDown={e => {
+                                                                if (e.key === 'Enter') handleSaveEntryNotes(entry.id, editingEntry.notes)
+                                                                if (e.key === 'Escape') setEditingEntry(null)
+                                                            }}
+                                                            style={{ width: '100%', border: 'none', outline: '1px solid var(--border)', borderRadius: 6, padding: '2px 6px', background: 'var(--surface2)', fontSize: 16, color: 'var(--text)', fontFamily: 'Inter, sans-serif' }}
+                                                        />
+                                                    ) : (
+                                                        <span
+                                                            onClick={() => setEditingEntry({ id: entry.id, notes: entry.notes || '' })}
+                                                            title="Click to edit"
+                                                            style={{ fontSize: 16, color: entry.notes ? 'var(--text)' : 'var(--text-dim)', fontStyle: entry.notes ? 'normal' : 'italic', cursor: 'text', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                            {entry.notes || 'No description'}
+                                                        </span>
+                                                    )}
                                                 </div>
 
                                                 {/* Event code badge */}
@@ -553,7 +576,7 @@ export default function HomePageClient({
                                                 </div>
 
                                                 {/* Duration */}
-                                                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', fontFamily: '"Courier New", monospace', minWidth: 48, textAlign: 'right', flexShrink: 0 }}>
+                                                <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--text)', fontFamily: '"Courier New", monospace', minWidth: 52, textAlign: 'right', flexShrink: 0 }}>
                                                     {entry.duration_seconds ? formatHM(entry.duration_seconds) : '—'}
                                                 </div>
 
