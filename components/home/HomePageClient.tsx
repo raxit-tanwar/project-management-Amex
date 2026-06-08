@@ -156,13 +156,15 @@ function ProjectDropdown({ projects, selectedId, disabled, onSelect, onCreateNew
 }
 
 // ─── Quick Create Modal ────────────────────────────────────────────────────────
-function QuickCreateModal({ onClose, onCreate }: { onClose: () => void; onCreate: (p: Project) => void }) {
+function QuickCreateModal({ onClose, onCreate, stages }: { onClose: () => void; onCreate: (p: Project) => void; stages: Stage[] }) {
     const [eventCode, setEventCode] = useState('')
     const [projectName, setProjectName] = useState('')
     const [clientName, setClientName] = useState('')
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState('')
     const supabase = createClient()
+
+    const defaultStage = stages.find(s => s.name === 'Project Assigned') ?? stages[0] ?? null
 
     const handleCreate = async () => {
         if (!eventCode.trim()) { setError('Event ID is required'); return }
@@ -176,11 +178,11 @@ function QuickCreateModal({ onClose, onCreate }: { onClose: () => void; onCreate
             name: projectName.trim(),
             event_code: eventCode.trim().toUpperCase(),
             client: clientName.trim() || null,
-            // No priority — removed from schema
-        }).select('id, name, event_code').single()
+            stage_id: defaultStage?.id ?? null,
+        }).select('id, name, event_code, stage_id').single()
 
         if (err) { setError(err.message); setSaving(false); return }
-        onCreate({ ...data, stage: null, tasks: [] } as Project)
+        onCreate({ ...data, stage: defaultStage ?? null, tasks: [] } as Project)
         onClose()
     }
 
@@ -663,7 +665,7 @@ export default function HomePageClient({
             })()}
 
             {/* Quick Create (from timer project dropdown) */}
-            {showQuickCreate && <QuickCreateModal onClose={() => setShowQuickCreate(false)} onCreate={handleQuickCreated} />}
+            {showQuickCreate && <QuickCreateModal stages={initialStages} onClose={() => setShowQuickCreate(false)} onCreate={handleQuickCreated} />}
 
             {/* Full New Project modal (from New Project button) */}
             {showFullNewProject && (

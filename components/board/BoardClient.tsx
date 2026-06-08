@@ -80,6 +80,8 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
         setDragOverStage(null)
     }
 
+    const defaultStageId = (stages.find(s => s.name === 'Project Assigned') ?? stages[0])?.id
+
     const todayStr = new Date().toISOString().split('T')[0]
     const yesterday = new Date()
     yesterday.setDate(yesterday.getDate() - 1)
@@ -188,7 +190,9 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                     display: 'flex', gap: 16, padding: '20px 24px', alignItems: 'flex-start'
                 }}>
                     {stages.map(stage => {
-                        const stageProjects = filteredProjects.filter(p => p.stage_id === stage.id)
+                        const stageProjects = filteredProjects.filter(p =>
+                            p.stage_id === stage.id || (stage.id === defaultStageId && !p.stage_id)
+                        )
                         return (
                             <div
                                 key={stage.id}
