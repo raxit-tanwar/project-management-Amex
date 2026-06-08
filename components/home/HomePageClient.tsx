@@ -268,6 +268,8 @@ export default function HomePageClient({
     // Fixed-position entry action menu
     const [menuState, setMenuState] = useState<{ id: string; x: number; y: number } | null>(null)
 
+    const [boardKey, setBoardKey] = useState(0)
+
     // Modals
     const [showQuickCreate, setShowQuickCreate] = useState(false)
     const [showFullNewProject, setShowFullNewProject] = useState(false)
@@ -366,6 +368,7 @@ export default function HomePageClient({
         setProjects(prev => [project, ...prev])
         setQuickCreatedIds(prev => new Set([...prev, project.id]))
         setSelection({ projectId: project.id, taskId: null })
+        setBoardKey(k => k + 1)
     }
 
     // Group time entries by day
@@ -612,9 +615,10 @@ export default function HomePageClient({
                 /* Pipeline Board tab */
                 <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                     <BoardClient
+                        key={boardKey}
                         userId={userId}
                         initialStages={initialStages as unknown as Parameters<typeof BoardClient>[0]['initialStages']}
-                        initialProjects={initialProjects as unknown as Parameters<typeof BoardClient>[0]['initialProjects']}
+                        initialProjects={projects as unknown as Parameters<typeof BoardClient>[0]['initialProjects']}
                         initialClients={initialClients}
                         embedded={true}
                     />
@@ -671,8 +675,18 @@ export default function HomePageClient({
                     onCreated={async () => {
                         setShowFullNewProject(false)
                         await refreshEntries()
-                        const { data } = await createClient().from('projects').select('id, name, event_code, stage:stages(id,name,color), tasks(id,name)').eq('user_id', userId).eq('archived', false).order('created_at', { ascending: false })
-                        if (data) setProjects(data as unknown as Project[])
+                        const { data } = await createClient().from('projects').select(`
+                            id, name, event_code, archived,
+                            stage:stages(id, name, color),
+                            client:clients(name),
+                            tasks(id, status, name, estimated_minutes),
+                            checklist_items(id, checked, text, position),
+                            time_entries(duration_seconds, started_at)
+                        `).eq('user_id', userId).eq('archived', false).order('created_at', { ascending: false })
+                        if (data) {
+                            setProjects(data as unknown as Project[])
+                            setBoardKey(k => k + 1)
+                        }
                     }}
                 />
             )}
