@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 interface Stage { id: string; name: string; color: string; position: number }
@@ -21,6 +22,7 @@ export default function SettingsClient({ userId, initialStages, initialTemplates
     initialClients: Client[]
 }) {
     const supabase = createClient()
+    const router = useRouter()
     const [tab, setTab] = useState<SettingsTab>('stages')
     const [stages, setStages] = useState(initialStages)
     const [templates, setTemplates] = useState(initialTemplates)
@@ -31,6 +33,9 @@ export default function SettingsClient({ userId, initialStages, initialTemplates
     const [newStageColor, setNewStageColor] = useState(STAGE_COLORS[1])
     const [newTemplateText, setNewTemplateText] = useState('')
     const [newClientName, setNewClientName] = useState('')
+    const [isReordering, setIsReordering] = useState(false)
+    const [pendingStages, setPendingStages] = useState<Stage[]>([])
+    const [savingOrder, setSavingOrder] = useState(false)
     const [draggedStageId, setDraggedStageId] = useState<string | null>(null)
     const [dragOverStageId, setDragOverStageId] = useState<string | null>(null)
 
@@ -60,33 +65,54 @@ export default function SettingsClient({ userId, initialStages, initialTemplates
         await supabase.from('stages').update({ name }).eq('id', id)
     }
 
-    const handleStageDrop = async (targetId: string) => {
+    const enterReorderMode = () => {
+        setPendingStages([...stages])
+        setIsReordering(true)
+    }
+
+    const cancelReorder = () => {
+        setPendingStages([])
+        setIsReordering(false)
+        setDraggedStageId(null)
+        setDragOverStageId(null)
+    }
+
+    const handleStageDrop = (targetId: string) => {
         if (!draggedStageId || draggedStageId === targetId) return
         setDraggedStageId(null)
         setDragOverStageId(null)
 
-        const locked = stages.find(s => s.name === LOCKED_STAGE_NAME)
-        if (targetId === locked?.id) return // cannot drop onto the locked stage slot
+        const locked = pendingStages.find(s => s.name === LOCKED_STAGE_NAME)
+        if (targetId === locked?.id) return
 
-        const reordered = [...stages]
+        const reordered = [...pendingStages]
         const fromIdx = reordered.findIndex(s => s.id === draggedStageId)
         const toIdx = reordered.findIndex(s => s.id === targetId)
         const [moved] = reordered.splice(fromIdx, 1)
         reordered.splice(toIdx, 0, moved)
 
-        // Locked stage must always be at position 0 — push it back if displaced
+        // Keep locked stage pinned at 0
         const lockedIdx = reordered.findIndex(s => s.name === LOCKED_STAGE_NAME)
         if (lockedIdx > 0) {
             const [lockedStage] = reordered.splice(lockedIdx, 1)
             reordered.unshift(lockedStage)
         }
 
-        const withPositions = reordered.map((s, i) => ({ ...s, position: i }))
-        setStages(withPositions)
+        setPendingStages(reordered.map((s, i) => ({ ...s, position: i })))
+    }
 
+    const saveStageOrder = async () => {
+        setSavingOrder(true)
+        const withPositions = pendingStages.map((s, i) => ({ ...s, position: i }))
         await Promise.all(
             withPositions.map(s => supabase.from('stages').update({ position: s.position }).eq('id', s.id))
         )
+        setStages(withPositions)
+        setPendingStages([])
+        setIsReordering(false)
+        setSavingOrder(false)
+        // Bust the Next.js router cache so the board page re-fetches fresh stage order
+        router.refresh()
         showSaved()
     }
 
@@ -196,38 +222,42 @@ export default function SettingsClient({ userId, initialStages, initialTemplates
                 {/* STAGES */}
                 {tab === 'stages' && (
                     <div>
-                        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20, lineHeight: 1.6 }}>
-                            Manage the pipeline stages shown on your Kanban board. Reordering is reflected immediately.
-                        </p>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                            <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6, margin: 0 }}>
+                                {isReordering
+                                    ? 'Drag stages into your preferred order, then click Save Order to apply to the Pipeline Board.'
+                                    : 'Manage the pipeline stages shown on your Kanban board.'}
+                            </p>
+                            {!isReordering ? (
+                                <button className="btn btn-surface btn-sm" onClick={enterReorderMode} style={{ flexShrink: 0, marginLeft: 16 }}>
+                                    ⠿ Reorder
+                                </button>
+                            ) : (
+                                <div style={{ display: 'flex', gap: 8, flexShrink: 0, marginLeft: 16 }}>
+                                    <button className="btn btn-ghost btn-sm" onClick={cancelReorder}>Cancel</button>
+                                    <button className="btn btn-primary btn-sm" onClick={saveStageOrder} disabled={savingOrder}>
+                                        {savingOrder ? 'Saving…' : '✓ Save Order'}
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* VIEW MODE — edit names, delete */}
+                        {!isReordering && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24 }}>
                             {stages.map((stage) => {
                                 const isLocked = stage.name === LOCKED_STAGE_NAME
-                                const isDragging = draggedStageId === stage.id
-                                const isDragOver = dragOverStageId === stage.id
                                 return (
-                                    <div
-                                        key={stage.id}
-                                        draggable={!isLocked}
-                                        onDragStart={() => !isLocked && setDraggedStageId(stage.id)}
-                                        onDragOver={e => { e.preventDefault(); if (!isLocked && draggedStageId !== stage.id) setDragOverStageId(stage.id) }}
-                                        onDragLeave={() => setDragOverStageId(null)}
-                                        onDrop={() => handleStageDrop(stage.id)}
-                                        onDragEnd={() => { setDraggedStageId(null); setDragOverStageId(null) }}
-                                        style={{
-                                            display: 'flex', alignItems: 'center', gap: 10,
-                                            padding: '10px 14px', background: isDragOver ? 'rgba(99,102,241,0.08)' : 'var(--surface2)',
-                                            border: `1px solid ${isDragOver ? 'rgba(99,102,241,0.4)' : isLocked ? 'rgba(99,102,241,0.25)' : 'var(--border)'}`,
-                                            borderRadius: 10, opacity: isDragging ? 0.4 : 1,
-                                            cursor: isLocked ? 'default' : 'grab',
-                                            transition: 'all 0.15s'
-                                        }}
-                                    >
-                                        {/* Drag handle or lock */}
-                                        {isLocked ? (
-                                            <span title="Default stage — always position 0" style={{ fontSize: 13, flexShrink: 0, opacity: 0.5 }}>🔒</span>
-                                        ) : (
-                                            <span style={{ fontSize: 14, color: 'var(--text-dim)', flexShrink: 0, lineHeight: 1, cursor: 'grab' }}>⠿</span>
-                                        )}
+                                    <div key={stage.id} style={{
+                                        display: 'flex', alignItems: 'center', gap: 10,
+                                        padding: '10px 14px', background: 'var(--surface2)',
+                                        border: `1px solid ${isLocked ? 'rgba(99,102,241,0.25)' : 'var(--border)'}`,
+                                        borderRadius: 10
+                                    }}>
+                                        {isLocked
+                                            ? <span title="Default stage — always position 0" style={{ fontSize: 13, flexShrink: 0, opacity: 0.5 }}>🔒</span>
+                                            : <div style={{ width: 6, flexShrink: 0 }} />
+                                        }
                                         <div style={{ width: 12, height: 12, borderRadius: '50%', background: stage.color, flexShrink: 0 }} />
                                         <input
                                             className="input"
@@ -238,13 +268,57 @@ export default function SettingsClient({ userId, initialStages, initialTemplates
                                         {isLocked && (
                                             <span style={{ fontSize: 11, color: '#6366f1', fontWeight: 600, background: 'rgba(99,102,241,0.1)', padding: '2px 8px', borderRadius: 5, flexShrink: 0 }}>Default</span>
                                         )}
-                                        <button onClick={() => !isLocked && deleteStage(stage.id)} disabled={isLocked} className="btn-icon" style={{ color: isLocked ? 'var(--text-dim)' : 'var(--danger)', opacity: isLocked ? 0.3 : 1 }} title={isLocked ? 'Cannot delete default stage' : 'Delete stage'}>
+                                        <button onClick={() => !isLocked && deleteStage(stage.id)} disabled={isLocked} className="btn-icon"
+                                            style={{ color: isLocked ? 'var(--text-dim)' : 'var(--danger)', opacity: isLocked ? 0.3 : 1 }}
+                                            title={isLocked ? 'Cannot delete default stage' : 'Delete stage'}>
                                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12" /></svg>
                                         </button>
                                     </div>
                                 )
                             })}
                         </div>
+                        )}
+
+                        {/* REORDER MODE — drag and drop only, no edit */}
+                        {isReordering && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24 }}>
+                            {pendingStages.map((stage) => {
+                                const isLocked = stage.name === LOCKED_STAGE_NAME
+                                const isDragging = draggedStageId === stage.id
+                                const isDragOver = dragOverStageId === stage.id
+                                return (
+                                    <div
+                                        key={stage.id}
+                                        draggable={!isLocked}
+                                        onDragStart={e => { if (!isLocked) { e.dataTransfer.effectAllowed = 'move'; setDraggedStageId(stage.id) } }}
+                                        onDragOver={e => { e.preventDefault(); if (!isLocked && draggedStageId !== stage.id) setDragOverStageId(stage.id) }}
+                                        onDragLeave={() => setDragOverStageId(null)}
+                                        onDrop={() => handleStageDrop(stage.id)}
+                                        onDragEnd={() => { setDraggedStageId(null); setDragOverStageId(null) }}
+                                        style={{
+                                            display: 'flex', alignItems: 'center', gap: 10,
+                                            padding: '10px 14px',
+                                            background: isDragOver ? 'rgba(99,102,241,0.08)' : 'var(--surface2)',
+                                            border: `2px solid ${isDragOver ? 'rgba(99,102,241,0.5)' : isLocked ? 'rgba(99,102,241,0.25)' : 'var(--border)'}`,
+                                            borderRadius: 10, opacity: isDragging ? 0.35 : 1,
+                                            cursor: isLocked ? 'default' : 'grab',
+                                            transition: 'all 0.12s', userSelect: 'none'
+                                        }}
+                                    >
+                                        {isLocked
+                                            ? <span title="Locked at position 0" style={{ fontSize: 13, flexShrink: 0, opacity: 0.5 }}>🔒</span>
+                                            : <span style={{ fontSize: 18, color: 'var(--text-dim)', flexShrink: 0, lineHeight: 1, cursor: 'grab' }}>⠿</span>
+                                        }
+                                        <div style={{ width: 12, height: 12, borderRadius: '50%', background: stage.color, flexShrink: 0 }} />
+                                        <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{stage.name}</span>
+                                        {isLocked && (
+                                            <span style={{ fontSize: 11, color: '#6366f1', fontWeight: 600, background: 'rgba(99,102,241,0.1)', padding: '2px 8px', borderRadius: 5, flexShrink: 0 }}>Default</span>
+                                        )}
+                                    </div>
+                                )
+                            })}
+                        </div>
+                        )}
 
                         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                             <input
