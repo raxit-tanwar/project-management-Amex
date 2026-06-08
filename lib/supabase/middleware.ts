@@ -6,7 +6,6 @@ export async function updateSession(request: NextRequest) {
         request,
     })
 
-    console.log('MIDDLEWARE: Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL)
     const supabase = createServerClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -35,16 +34,18 @@ export async function updateSession(request: NextRequest) {
     } = await supabase.auth.getUser()
 
     const { pathname } = request.nextUrl
+    const isProtected = pathname.startsWith('/dashboard') || pathname.startsWith('/reports') || pathname.startsWith('/settings')
+    const isAuthPage = pathname === '/login' || pathname === '/signup' || pathname === '/reset-password'
 
-    // Protected routes — redirect to login if not authenticated
-    if (!user && pathname.startsWith('/dashboard')) {
+    // Protected routes — redirect unauthenticated users to login
+    if (!user && isProtected) {
         const url = request.nextUrl.clone()
         url.pathname = '/login'
         return NextResponse.redirect(url)
     }
 
     // Redirect authenticated users away from auth pages
-    if (user && (pathname === '/login' || pathname === '/signup' || pathname === '/reset-password')) {
+    if (user && isAuthPage) {
         const url = request.nextUrl.clone()
         url.pathname = '/dashboard'
         return NextResponse.redirect(url)

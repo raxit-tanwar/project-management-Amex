@@ -1,9 +1,10 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { signout } from '@/app/(auth)/actions'
+import { usePathname, useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import { Home, BarChart2, Settings } from 'lucide-react'
+import { useState } from 'react'
 
 interface SidebarProps {
     user: { email: string; name: string }
@@ -17,6 +18,16 @@ const navItems = [
 
 export default function Sidebar({ user }: SidebarProps) {
     const pathname = usePathname()
+    const router = useRouter()
+    const [signingOut, setSigningOut] = useState(false)
+
+    async function handleSignOut() {
+        setSigningOut(true)
+        const supabase = createClient()
+        await supabase.auth.signOut()
+        router.push('/login')
+        router.refresh()
+    }
 
     return (
         <aside style={{
@@ -100,11 +111,14 @@ export default function Sidebar({ user }: SidebarProps) {
                         </div>
                     </div>
                 </div>
-                <form action={signout}>
-                    <button type="submit" className="btn btn-ghost btn-sm" style={{ width: '100%', justifyContent: 'center' }}>
-                        Sign out
-                    </button>
-                </form>
+                <button
+                    onClick={handleSignOut}
+                    disabled={signingOut}
+                    className="btn btn-ghost btn-sm"
+                    style={{ width: '100%', justifyContent: 'center' }}
+                >
+                    {signingOut ? 'Signing out…' : 'Sign out'}
+                </button>
             </div>
         </aside>
     )

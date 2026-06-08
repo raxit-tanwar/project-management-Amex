@@ -54,9 +54,14 @@ export async function signup(formData: FormData) {
 }
 
 export async function signout() {
-    const supabase = await createClient()
-    await supabase.auth.signOut()
-    redirect('/login')
+    try {
+        const supabase = await createClient()
+        await supabase.auth.signOut()
+        redirect('/login')
+    } catch (err: any) {
+        if (err?.digest?.startsWith('NEXT_REDIRECT')) throw err
+        redirect('/login')
+    }
 }
 
 export async function resetPassword(formData: FormData) {
