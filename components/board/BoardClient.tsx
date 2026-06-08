@@ -43,8 +43,9 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
     const [draggedId, setDraggedId] = useState<string | null>(null)
     const [dragOverStage, setDragOverStage] = useState<string | null>(null)
     const [searchText, setSearchText] = useState('')
+    const [showArchived, setShowArchived] = useState(false)
 
-    const refresh = useCallback(async () => {
+    const fetchProjects = useCallback(async (archived: boolean) => {
         const [{ data: projData }, { data: clientData }] = await Promise.all([
             supabase.from('projects').select(`
                 *,
@@ -53,12 +54,14 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                 tasks(id, status, name, estimated_minutes),
                 checklist_items(id, checked, text, position),
                 time_entries(duration_seconds, started_at)
-            `).eq('user_id', userId).eq('archived', false).order('created_at', { ascending: false }),
+            `).eq('user_id', userId).eq('archived', archived).order('created_at', { ascending: false }),
             supabase.from('clients').select('*').eq('user_id', userId).order('name')
         ])
         if (projData) setProjects(projData)
         if (clientData) setClients(clientData)
     }, [supabase, userId])
+
+    const refresh = useCallback(() => fetchProjects(showArchived), [fetchProjects, showArchived])
 
     const handleDragStart = (e: React.DragEvent, projectId: string) => {
         setDraggedId(projectId)
@@ -159,6 +162,22 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                         </button>
                     ))}
                 </div>
+
+                {/* Archived toggle */}
+                <button
+                    onClick={() => { const next = !showArchived; setShowArchived(next); fetchProjects(next) }}
+                    style={{
+                        padding: '5px 12px', borderRadius: 20, border: '1px solid',
+                        fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                        fontFamily: 'Inter, sans-serif', transition: 'all 0.15s',
+                        background: showArchived ? 'rgba(245,158,11,0.12)' : 'transparent',
+                        color: showArchived ? '#d97706' : 'var(--text-muted)',
+                        borderColor: showArchived ? 'rgba(245,158,11,0.4)' : 'var(--border)',
+                    }}
+                    title={showArchived ? 'Showing archived projects — click to show active' : 'Show archived projects'}
+                >
+                    📦 {showArchived ? 'Archived' : 'Archived'}
+                </button>
 
                 {/* Board / List toggle */}
                 <div style={{ display: 'flex', borderRadius: 8, border: '1px solid var(--border)', overflow: 'hidden', marginLeft: 'auto' }}>

@@ -712,6 +712,16 @@ export default function HomePageClient({
                         setDetailProject(null); setFullDetailData(null)
                         if (fullDetailData?.id) setQuickCreatedIds(prev => { const n = new Set(prev); n.delete(fullDetailData.id as string); return n })
                         await refreshEntries()
+                        // Refresh projects so archived/edited projects reflect on the board immediately
+                        const { data } = await createClient().from('projects').select(`
+                            id, name, event_code, archived,
+                            stage:stages(id, name, color),
+                            client:clients(name),
+                            tasks(id, status, name, estimated_minutes),
+                            checklist_items(id, checked, text, position),
+                            time_entries(duration_seconds, started_at)
+                        `).eq('user_id', userId).eq('archived', false).order('created_at', { ascending: false })
+                        if (data) { setProjects(data as unknown as Project[]); setBoardKey(k => k + 1) }
                         if (pendingStart) { doStart(); setPendingStart(false) }
                     }}
                 />

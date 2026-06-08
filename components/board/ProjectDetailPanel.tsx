@@ -203,8 +203,8 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
 
     // Archive project
     const archiveProject = async () => {
-        if (!confirm(`Archive "${project.name}"?`)) return
-        await supabase.rpc('archive_project', { p_id: project.id })
+        if (!confirm(`Archive "${project.name}"?\n\nArchived projects are hidden from the Pipeline Board. You can view them by enabling "Show Archived" on the board.`)) return
+        await supabase.from('projects').update({ archived: true }).eq('id', project.id)
         onUpdated()
     }
 
@@ -237,37 +237,51 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                 }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+                            {/* 1. Event Name — primary, largest */}
+                            <h2 style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-0.025em', lineHeight: 1.15, color: 'var(--text)', marginBottom: 4 }}>
+                                {project.name}
+                            </h2>
+
+                            {/* 2. Event Code — secondary, below name */}
+                            {project.event_code && (
+                                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-light)', letterSpacing: '0.04em', marginBottom: 10 }}>
+                                    {project.event_code}
+                                </div>
+                            )}
+
+                            {/* 3. Tags — lowest hierarchy, below both */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                {project.stage && (
+                                    <span style={{
+                                        fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 6,
+                                        background: `${project.stage.color}18`, color: project.stage.color
+                                    }}>{project.stage.name}</span>
+                                )}
                                 {project.client?.name && (
                                     <span style={{
-                                        fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
+                                        fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 6,
                                         background: `${project.client_color ?? '#6366f1'}20`,
                                         color: project.client_color ?? '#6366f1'
                                     }}>{project.client.name}</span>
                                 )}
                                 {project.build_type && (
-                                    <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: 'rgba(99,102,241,0.12)', color: 'var(--accent-light)' }}>{project.build_type}</span>
+                                    <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 6, background: 'rgba(99,102,241,0.12)', color: 'var(--accent-light)' }}>{project.build_type}</span>
                                 )}
                                 {(project.build_addons ?? []).map(a => (
-                                    <span key={a} style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: 'rgba(245,158,11,0.1)', color: 'var(--warning)' }}>+ {a}</span>
+                                    <span key={a} style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 6, background: 'rgba(245,158,11,0.1)', color: 'var(--warning)' }}>+{a}</span>
                                 ))}
                                 {project.project_type && (
-                                    <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: 'rgba(34,197,94,0.1)', color: 'var(--success)' }}>{project.project_type}</span>
-                                )}
-                                {project.stage && (
-                                    <span style={{
-                                        fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 6,
-                                        background: `${project.stage.color}18`, color: project.stage.color
-                                    }}>{project.stage.name}</span>
+                                    <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 6, background: 'rgba(34,197,94,0.1)', color: 'var(--success)' }}>{project.project_type}</span>
                                 )}
                             </div>
-                            <h2 style={{ fontSize: 21, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.2 }}>
-                                {project.event_code && <span style={{ color: 'var(--accent)', marginRight: 8 }}>{project.event_code}</span>}
-                                {project.name}
-                            </h2>
                         </div>
-                        <div style={{ display: 'flex', gap: 6 }}>
-                            <button className="btn-icon" title="Archive project" onClick={archiveProject}>📦</button>
+                        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                            <button
+                                className="btn-icon"
+                                title="Archive project — hides it from the board"
+                                onClick={archiveProject}
+                                style={{ fontSize: 16 }}
+                            >📦</button>
                             <button className="btn-icon" onClick={onClose} aria-label="Close">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12" /></svg>
                             </button>
