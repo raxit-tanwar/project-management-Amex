@@ -213,7 +213,7 @@ export default function NewProjectModal({ stages, clients: initialClients, userI
                                 <button type="button" onClick={handleAddClient} className="btn btn-primary" style={{ padding: '0 12px' }}>Save</button>
                             </div>
                         ) : (
-                            <select id="proj-client" name="client_id" className="input" required>
+                            <select id="proj-client" name="client_id" className="input" required defaultValue={clients.find(c => c.name === 'EY')?.id ?? ''}>
                                 <option value="">Select a client...</option>
                                 {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                             </select>
@@ -233,7 +233,7 @@ export default function NewProjectModal({ stages, clients: initialClients, userI
 
                     <div>
                         <label className="label" htmlFor="proj-stage">Initial Stage <span style={{ color: 'var(--danger)' }}>*</span></label>
-                        <select id="proj-stage" name="stage_id" className="input" required defaultValue={stages[0]?.id ?? ''}>
+                        <select id="proj-stage" name="stage_id" className="input" required defaultValue={(stages.find(s => s.name === 'Project Assigned') ?? stages[0])?.id ?? ''}>
                             {stages.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                         </select>
                     </div>

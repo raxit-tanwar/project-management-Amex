@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useTimer } from '@/context/TimerContext'
 import BoardClient from '@/components/board/BoardClient'
 import ProjectDetailPanel from '@/components/board/ProjectDetailPanel'
+import NewProjectModal from '@/components/board/NewProjectModal'
 import {
     Play, Square, Tag, Calendar, Clock,
     MoreHorizontal, Trash2, Copy, Search,
@@ -269,6 +270,7 @@ export default function HomePageClient({
 
     // Modals
     const [showQuickCreate, setShowQuickCreate] = useState(false)
+    const [showFullNewProject, setShowFullNewProject] = useState(false)
     const [incompletePrompt, setIncompletePrompt] = useState<Project | null>(null)
     const [pendingStart, setPendingStart] = useState(false)
     const [quickCreatedIds, setQuickCreatedIds] = useState<Set<string>>(new Set())
@@ -500,7 +502,7 @@ export default function HomePageClient({
                 </div>
 
                 {/* New Project button — visible on both tabs */}
-                <button className="btn btn-primary btn-sm" onClick={() => setShowQuickCreate(true)} style={{ marginRight: 4 }}>
+                <button className="btn btn-primary btn-sm" onClick={() => setShowFullNewProject(true)} style={{ marginRight: 4 }}>
                     <Plus size={13} /> New Project
                 </button>
             </div>
@@ -656,8 +658,24 @@ export default function HomePageClient({
                 )
             })()}
 
-            {/* Quick Create */}
+            {/* Quick Create (from timer project dropdown) */}
             {showQuickCreate && <QuickCreateModal onClose={() => setShowQuickCreate(false)} onCreate={handleQuickCreated} />}
+
+            {/* Full New Project modal (from New Project button) */}
+            {showFullNewProject && (
+                <NewProjectModal
+                    stages={initialStages}
+                    clients={initialClients}
+                    userId={userId}
+                    onClose={() => setShowFullNewProject(false)}
+                    onCreated={async () => {
+                        setShowFullNewProject(false)
+                        await refreshEntries()
+                        const { data } = await createClient().from('projects').select('id, name, event_code, stage:stages(id,name,color), tasks(id,name)').eq('user_id', userId).eq('archived', false).order('created_at', { ascending: false })
+                        if (data) setProjects(data as unknown as Project[])
+                    }}
+                />
+            )}
 
             {/* Incomplete project guard */}
             {incompletePrompt && (
