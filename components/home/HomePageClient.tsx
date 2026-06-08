@@ -40,7 +40,7 @@ function formatTime(d: string) {
 }
 function formatHM(s: number) {
     const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60)
-    if (h === 0) return `${m}m`; if (m === 0) return `${h}h`; return `${h}h ${m}m`
+    return `${h}:${String(m).padStart(2, '0')} hr`
 }
 function dayLabel(d: string) {
     const date = new Date(d), today = new Date(), yesterday = new Date()
@@ -313,7 +313,6 @@ export default function HomePageClient({
         setLoading(true)
         await stopTimer(description || undefined)
         await refreshEntries()
-        setDescription('')
         setLoading(false)
     }, [stopTimer, description, refreshEntries])
 
@@ -576,7 +575,7 @@ export default function HomePageClient({
                                                 </div>
 
                                                 {/* Duration */}
-                                                <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--text)', fontFamily: '"Courier New", monospace', minWidth: 52, textAlign: 'right', flexShrink: 0 }}>
+                                                <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', fontFamily: '"Courier New", monospace', minWidth: 72, textAlign: 'right', flexShrink: 0 }}>
                                                     {entry.duration_seconds ? formatHM(entry.duration_seconds) : '—'}
                                                 </div>
 
