@@ -77,10 +77,6 @@ export default function NewProjectModal({ stages, clients: initialClients, userI
             stakeholder_email: form.get('stakeholder_email') as string || null,
             start_date: form.get('start_date') as string || null,
             build_assigned_date: form.get('start_date') as string || null,
-            web_build_start_date: form.get('web_build_start_date') as string || null,
-            first_draft_sent_date: form.get('first_draft_sent_date') as string || null,
-            due_date: form.get('build_live_date') as string || null,
-            build_live_date: form.get('build_live_date') as string || null,
             notes: form.get('notes') as string || null,
         }
 
@@ -116,7 +112,7 @@ export default function NewProjectModal({ stages, clients: initialClients, userI
             display: 'flex', alignItems: 'center', justifyContent: 'flex-end'
         }} onClick={e => e.target === e.currentTarget && onClose()}>
             <div className="slide-in" style={{
-                width: '100%', maxWidth: 520, height: '100vh',
+                width: '100%', maxWidth: 760, height: '100vh',
                 background: 'var(--surface)', borderLeft: '1px solid var(--border)',
                 overflow: 'auto', display: 'flex', flexDirection: 'column'
             }}>
@@ -136,91 +132,90 @@ export default function NewProjectModal({ stages, clients: initialClients, userI
                     </button>
                 </div>
 
-                <form onSubmit={handleSubmit} style={{ flex: 1, overflow: 'auto', padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-                    <div>
-                        <label className="label" htmlFor="proj-name">Project name <span style={{ color: 'var(--danger)' }}>*</span></label>
-                        <input id="proj-name" name="name" className="input" required placeholder="e.g. Annual Conference 2026" />
+                <form onSubmit={handleSubmit} style={{ flex: 1, overflow: 'auto', padding: '28px 32px', display: 'flex', flexDirection: 'column', gap: 22 }}>
+
+                    {/* Row 1: Project Name + Event Code */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
+                        <div>
+                            <label className="label" htmlFor="proj-name">Project Name <span style={{ color: 'var(--danger)' }}>*</span></label>
+                            <input id="proj-name" name="name" className="input" required placeholder="e.g. Annual Conference 2026" />
+                        </div>
+                        <div>
+                            <label className="label" htmlFor="proj-code">Event Code <span style={{ color: 'var(--danger)' }}>*</span></label>
+                            <input id="proj-code" name="event_code" className="input" required placeholder="e.g. EVT-2026-001 (from Cvent)" />
+                        </div>
                     </div>
 
-                    <div>
-                        <label className="label" htmlFor="proj-code">Event Code <span style={{ color: 'var(--danger)' }}>*</span></label>
-                        <input id="proj-code" name="event_code" className="input" required placeholder="e.g. EVT-2026-001 (from Cvent)" />
+                    {/* Row 2: Type of Build + Type of Project */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
+                        <div>
+                            <label className="label" htmlFor="proj-build-type">Type of Build <span style={{ color: 'var(--danger)' }}>*</span></label>
+                            <select id="proj-build-type" name="build_type" className="input" required defaultValue="">
+                                <option value="" disabled>Select build type…</option>
+                                {PRIMARY_BUILD_TYPES.map(bt => <option key={bt} value={bt}>{bt}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="label" htmlFor="proj-project-type">Type of Project <span style={{ color: 'var(--danger)' }}>*</span></label>
+                            <select id="proj-project-type" name="project_type" className="input" required defaultValue="">
+                                <option value="" disabled>Select project type…</option>
+                                {PROJECT_TYPES.map(pt => <option key={pt} value={pt}>{pt}</option>)}
+                            </select>
+                        </div>
                     </div>
 
+                    {/* Row 3: Add-ons (full width, horizontal chips) */}
                     <div>
-                        <label className="label" htmlFor="proj-build-type">Type of Build <span style={{ color: 'var(--danger)' }}>*</span></label>
-                        <select id="proj-build-type" name="build_type" className="input" required defaultValue="">
-                            <option value="" disabled>Select primary build type...</option>
-                            {PRIMARY_BUILD_TYPES.map(bt => <option key={bt} value={bt}>{bt}</option>)}
-                        </select>
-                    </div>
-
-                    <div>
-                        <label className="label">Add-ons <span style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 400 }}>(optional, select any)</span></label>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+                        <label className="label">Add-ons <span style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 400 }}>(optional)</span></label>
+                        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 6 }}>
                             {BUILD_ADDONS.map(addon => (
-                                <label key={addon} style={{
-                                    display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
-                                    padding: '10px 14px', borderRadius: 8,
-                                    background: selectedAddons.includes(addon) ? 'var(--accent-dim)' : 'var(--surface2)',
-                                    border: `1px solid ${selectedAddons.includes(addon) ? 'rgba(99,102,241,0.4)' : 'var(--border)'}`,
-                                    transition: 'all 0.15s'
-                                }}>
-                                    <div style={{
-                                        width: 18, height: 18, borderRadius: 4, border: '2px solid',
-                                        borderColor: selectedAddons.includes(addon) ? 'var(--accent)' : 'var(--border)',
-                                        background: selectedAddons.includes(addon) ? 'var(--accent)' : 'transparent',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        flexShrink: 0, transition: 'all 0.15s'
-                                    }}>
-                                        {selectedAddons.includes(addon) && (
-                                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4"><path d="M20 6L9 17l-5-5" /></svg>
-                                        )}
-                                    </div>
-                                    <input type="checkbox" checked={selectedAddons.includes(addon)} onChange={() => toggleAddon(addon)} style={{ display: 'none' }} />
-                                    <span style={{ fontSize: 13, fontWeight: 500, color: selectedAddons.includes(addon) ? 'var(--accent-light)' : 'var(--text)' }}>{addon}</span>
-                                </label>
+                                <button
+                                    key={addon} type="button" onClick={() => toggleAddon(addon)}
+                                    style={{
+                                        padding: '7px 14px', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 500,
+                                        fontFamily: 'Inter, sans-serif', transition: 'all 0.15s',
+                                        background: selectedAddons.includes(addon) ? 'var(--accent-dim)' : 'var(--surface2)',
+                                        border: `1.5px solid ${selectedAddons.includes(addon) ? 'rgba(99,102,241,0.5)' : 'var(--border)'}`,
+                                        color: selectedAddons.includes(addon) ? 'var(--accent-light)' : 'var(--text-muted)',
+                                    }}
+                                >
+                                    {selectedAddons.includes(addon) ? '✓ ' : ''}{addon}
+                                </button>
                             ))}
                         </div>
                     </div>
 
-                    <div>
-                        <label className="label" htmlFor="proj-project-type">Type of Project <span style={{ color: 'var(--danger)' }}>*</span></label>
-                        <select id="proj-project-type" name="project_type" className="input" required defaultValue="">
-                            <option value="" disabled>Select project type...</option>
-                            {PROJECT_TYPES.map(pt => <option key={pt} value={pt}>{pt}</option>)}
-                        </select>
-                    </div>
-
-                    <div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                            <label className="label" style={{ marginBottom: 0 }}>Client <span style={{ color: 'var(--danger)' }}>*</span></label>
-                            <button type="button" onClick={() => setIsAddingClient(!isAddingClient)} style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
-                                {isAddingClient ? '✕ Cancel' : '+ Add New Client'}
-                            </button>
-                        </div>
-
-                        {isAddingClient ? (
-                            <div style={{ display: 'flex', gap: 8 }}>
-                                <input
-                                    className="input"
-                                    placeholder="Enter new client name..."
-                                    value={newClientName}
-                                    onChange={e => setNewClientName(e.target.value)}
-                                    autoFocus
-                                    required
-                                />
-                                <button type="button" onClick={handleAddClient} className="btn btn-primary" style={{ padding: '0 12px' }}>Save</button>
+                    {/* Row 4: Client + Initial Stage */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
+                        <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                <label className="label" style={{ marginBottom: 0 }}>Client <span style={{ color: 'var(--danger)' }}>*</span></label>
+                                <button type="button" onClick={() => setIsAddingClient(!isAddingClient)} style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
+                                    {isAddingClient ? '✕ Cancel' : '+ New Client'}
+                                </button>
                             </div>
-                        ) : (
-                            <select id="proj-client" name="client_id" className="input" required defaultValue={clients.find(c => c.name === 'EY')?.id ?? ''}>
-                                <option value="">Select a client...</option>
-                                {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            {isAddingClient ? (
+                                <div style={{ display: 'flex', gap: 8 }}>
+                                    <input className="input" placeholder="Client name…" value={newClientName} onChange={e => setNewClientName(e.target.value)} autoFocus />
+                                    <button type="button" onClick={handleAddClient} className="btn btn-primary" style={{ padding: '0 12px' }}>Save</button>
+                                </div>
+                            ) : (
+                                <select name="client_id" className="input" required defaultValue={clients.find(c => c.name === 'EY')?.id ?? ''}>
+                                    <option value="">Select a client…</option>
+                                    {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                </select>
+                            )}
+                        </div>
+                        <div>
+                            <label className="label" htmlFor="proj-stage">Initial Stage <span style={{ color: 'var(--danger)' }}>*</span></label>
+                            <select id="proj-stage" name="stage_id" className="input" required defaultValue={(stages.find(s => s.name === 'Project Assigned') ?? stages[0])?.id ?? ''}>
+                                {stages.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                             </select>
-                        )}
+                        </div>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                    {/* Row 5: Stakeholder Name + Email */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
                         <div>
                             <label className="label" htmlFor="proj-stakeholder-name">Build Stakeholder Name</label>
                             <input id="proj-stakeholder-name" name="stakeholder_name" className="input" placeholder="e.g. Jane Smith" />
@@ -231,38 +226,31 @@ export default function NewProjectModal({ stages, clients: initialClients, userI
                         </div>
                     </div>
 
-                    <div>
-                        <label className="label" htmlFor="proj-stage">Initial Stage <span style={{ color: 'var(--danger)' }}>*</span></label>
-                        <select id="proj-stage" name="stage_id" className="input" required defaultValue={(stages.find(s => s.name === 'Project Assigned') ?? stages[0])?.id ?? ''}>
-                            {stages.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                        </select>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                    {/* Row 6: Build Assigned Date (only date in the form — defaults to today) */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
                         <div>
                             <label className="label" htmlFor="proj-start">Build Assigned Date <span style={{ color: 'var(--danger)' }}>*</span></label>
-                            <input id="proj-start" name="start_date" type="date" className="input" required />
+                            <input id="proj-start" name="start_date" type="date" className="input" required
+                                defaultValue={new Date().toISOString().split('T')[0]} />
+                            <p style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>Defaults to today — change if needed.</p>
                         </div>
-                        <div>
-                            <label className="label" htmlFor="proj-web-start">Web Build Start Date</label>
-                            <input id="proj-web-start" name="web_build_start_date" type="date" className="input" />
-                        </div>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                        <div>
-                            <label className="label" htmlFor="proj-first-draft">First Draft Sent Date</label>
-                            <input id="proj-first-draft" name="first_draft_sent_date" type="date" className="input" />
-                        </div>
-                        <div>
-                            <label className="label" htmlFor="proj-live">Build Live Date</label>
-                            <input id="proj-live" name="build_live_date" type="date" className="input" />
+                        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '8px 14px', background: 'rgba(99,102,241,0.05)', borderRadius: 10, border: '1px dashed rgba(99,102,241,0.2)' }}>
+                            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0, lineHeight: 1.6 }}>
+                                <strong style={{ color: 'var(--accent-light)' }}>Other dates are captured automatically</strong> as you move the project through stages on the board:
+                            </p>
+                            <ul style={{ fontSize: 11, color: 'var(--text-dim)', margin: '6px 0 0', paddingLeft: 16, lineHeight: 1.8 }}>
+                                <li>Kick-off Call → Kick-off Date</li>
+                                <li>In Build → Web Build Start Date</li>
+                                <li>First Draft Sent → Draft Date</li>
+                                <li>Live → Build Live Date</li>
+                            </ul>
                         </div>
                     </div>
 
+                    {/* Row 7: Build Notes (full width) */}
                     <div>
                         <label className="label" htmlFor="proj-notes">Build Notes</label>
-                        <textarea id="proj-notes" name="notes" className="input" placeholder="Any additional context..." rows={3} />
+                        <textarea id="proj-notes" name="notes" className="input" placeholder="Any additional context…" rows={3} />
                     </div>
 
                     {error && (

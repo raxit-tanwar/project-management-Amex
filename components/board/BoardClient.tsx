@@ -38,6 +38,20 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
     const [clients, setClients] = useState(initialClients)
     const [showNewProject, setShowNewProject] = useState(false)
     const [selectedProject, setSelectedProject] = useState<Project | null>(null)
+    const [stageDatePrompt, setStageDatePrompt] = useState<{
+        projectId: string; projectName: string
+        stageId: string; stageName: string
+        field: string; label: string
+    } | null>(null)
+    const [stageDateValue, setStageDateValue] = useState('')
+
+    // Which stages require a date capture on drop
+    const STAGE_DATE_MAP: Record<string, { field: string; label: string }> = {
+        'Kick-off Call':      { field: 'kickoff_call_date',     label: 'Kick-off Call Date' },
+        'In Build':           { field: 'web_build_start_date',  label: 'Web Build Start Date' },
+        'First Draft Sent':   { field: 'first_draft_sent_date', label: 'First Draft Sent Date' },
+        'Live':               { field: 'build_live_date',       label: 'Build Live Date' },
+    }
     const [viewFilter, setViewFilter] = useState<string>('all')
     const [viewMode, setViewMode] = useState<'board' | 'list'>('board')
     const [draggedId, setDraggedId] = useState<string | null>(null)
@@ -68,19 +82,40 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
         e.dataTransfer.effectAllowed = 'move'
     }
 
-    const handleDrop = async (e: React.DragEvent, stageId: string) => {
-        e.preventDefault()
-        if (!draggedId || draggedId === stageId) return
+    const commitStageChange = async (projectId: string, stageId: string, extraField?: { field: string; value: string }) => {
         setProjects(prev => prev.map(p =>
-            p.id === draggedId ? { ...p, stage_id: stageId, stage: stages.find(s => s.id === stageId) } : p
+            p.id === projectId ? { ...p, stage_id: stageId, stage: stages.find(s => s.id === stageId) } : p
         ))
         await supabase.rpc('update_project_stage', {
-            p_id: draggedId,
+            p_id: projectId,
             p_stage_id: stageId,
             p_stage_changed_at: new Date().toISOString(),
         })
+        if (extraField?.value) {
+            await supabase.from('projects').update({ [extraField.field]: extraField.value }).eq('id', projectId)
+        }
+    }
+
+    const handleDrop = async (e: React.DragEvent, stageId: string) => {
+        e.preventDefault()
+        if (!draggedId || draggedId === stageId) return
+        const targetStage = stages.find(s => s.id === stageId)
+        const dateRequirement = targetStage ? STAGE_DATE_MAP[targetStage.name] : null
+        const project = projects.find(p => p.id === draggedId)
+
         setDraggedId(null)
         setDragOverStage(null)
+
+        if (dateRequirement && project) {
+            setStageDateValue(new Date().toISOString().split('T')[0])
+            setStageDatePrompt({
+                projectId: project.id, projectName: project.name,
+                stageId, stageName: targetStage!.name,
+                field: dateRequirement.field, label: dateRequirement.label,
+            })
+        } else {
+            await commitStageChange(draggedId, stageId)
+        }
     }
 
     const defaultStageId = (stages.find(s => s.name === 'Project Assigned') ?? stages[0])?.id
@@ -383,6 +418,49 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                         setSelectedProject(null)
                     }}
                 />
+            )}
+
+            {/* Stage-drop date prompt modal */}
+            {stageDatePrompt && (
+                <div style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+                    <div style={{ background: 'var(--surface)', borderRadius: 16, border: '1px solid var(--border)', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', width: '100%', maxWidth: 420, padding: 28 }}>
+                        <div style={{ marginBottom: 20 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                                <span style={{ fontSize: 20 }}>📅</span>
+                                <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>Moving to {stageDatePrompt.stageName}</h3>
+                            </div>
+                            <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
+                                <strong style={{ color: 'var(--text)' }}>{stageDatePrompt.projectName}</strong> is being moved to <strong style={{ color: 'var(--text)' }}>{stageDatePrompt.stageName}</strong>.
+                                Please confirm the <strong>{stageDatePrompt.label}</strong>.
+                            </p>
+                        </div>
+                        <div style={{ marginBottom: 20 }}>
+                            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>{stageDatePrompt.label}</label>
+                            <input
+                                type="date" className="input"
+                                value={stageDateValue}
+                                onChange={e => setStageDateValue(e.target.value)}
+                                autoFocus
+                            />
+                        </div>
+                        <div style={{ display: 'flex', gap: 10 }}>
+                            <button className="btn btn-ghost" style={{ flex: 1 }}
+                                onClick={async () => {
+                                    await commitStageChange(stageDatePrompt.projectId, stageDatePrompt.stageId)
+                                    setStageDatePrompt(null)
+                                }}>
+                                Skip date
+                            </button>
+                            <button className="btn btn-primary" style={{ flex: 2 }}
+                                onClick={async () => {
+                                    await commitStageChange(stageDatePrompt.projectId, stageDatePrompt.stageId, { field: stageDatePrompt.field, value: stageDateValue })
+                                    setStageDatePrompt(null)
+                                }}>
+                                Confirm &amp; Move
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     )
