@@ -12,7 +12,7 @@ interface Project {
     id: string; name: string; event_code?: string; client_id?: string; client?: { name: string }; client_color?: string
     build_type?: string; build_addons?: string[]; project_type?: string; stakeholder_name?: string; stakeholder_email?: string
     due_date?: string; build_live_date?: string; start_date?: string; build_assigned_date?: string
-    web_build_start_date?: string; first_draft_sent_date?: string
+    web_build_start_date?: string; first_draft_sent_date?: string; kickoff_call_date?: string
     stage_id?: string; stage?: Stage
     tasks?: { id: string; status: string; name: string; estimated_minutes?: number }[]
     checklist_items?: { id: string; checked: boolean; text: string; position: number }[]
@@ -102,6 +102,10 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
         const toSave = Object.fromEntries(Object.entries(dates).filter(([, v]) => !!v))
         if (Object.keys(toSave).length > 0) {
             await supabase.from('projects').update(toSave).eq('id', projectId)
+            // Update local state so ProjectDetailPanel shows fresh dates immediately
+            setProjects(prev => prev.map(p =>
+                p.id === projectId ? { ...p, ...toSave } : p
+            ))
         }
     }
 

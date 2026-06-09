@@ -15,7 +15,7 @@ interface Project {
     id: string; name: string; event_code?: string; client_id?: string; client?: { name: string }; client_color?: string
     build_type?: string; build_addons?: string[]; project_type?: string; stakeholder_name?: string; stakeholder_email?: string
     due_date?: string; build_live_date?: string; start_date?: string; build_assigned_date?: string
-    web_build_start_date?: string; first_draft_sent_date?: string
+    web_build_start_date?: string; first_draft_sent_date?: string; kickoff_call_date?: string
     notes?: string; stage_id?: string
     stage?: { id: string; name: string; color: string }
 }
@@ -70,6 +70,7 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
         build_addons: project.build_addons ?? [] as string[],
         project_type: project.project_type ?? '',
         start_date: project.start_date ?? '',
+        kickoff_call_date: project.kickoff_call_date ?? '',
         web_build_start_date: project.web_build_start_date ?? '',
         first_draft_sent_date: project.first_draft_sent_date ?? '',
         due_date: project.due_date ?? '',
@@ -89,24 +90,24 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
 
     async function saveEdit() {
         setLoading(true)
-        const { error } = await supabase.rpc('update_project', {
-            p_id:                   project.id,
-            p_name:                 editForm.name || null,
-            p_event_code:           editForm.event_code || null,
-            p_stage_id:             editForm.stage_id || null,
-            p_build_type:           editForm.build_type || null,
-            p_build_addons:         editForm.build_addons.length > 0 ? editForm.build_addons : null,
-            p_project_type:         editForm.project_type || null,
-            p_start_date:           editForm.start_date || null,
-            p_build_assigned_date:  editForm.start_date || null,
-            p_web_build_start_date: editForm.web_build_start_date || null,
-            p_first_draft_sent_date:editForm.first_draft_sent_date || null,
-            p_due_date:             editForm.due_date || null,
-            p_build_live_date:      editForm.due_date || null,
-            p_stakeholder_name:     editForm.stakeholder_name || null,
-            p_stakeholder_email:    editForm.stakeholder_email || null,
-            p_client_id:            editForm.client_id || null,
-        })
+        const { error } = await supabase.from('projects').update({
+            name:                 editForm.name || null,
+            event_code:           editForm.event_code || null,
+            stage_id:             editForm.stage_id || null,
+            build_type:           editForm.build_type || null,
+            build_addons:         editForm.build_addons.length > 0 ? editForm.build_addons : null,
+            project_type:         editForm.project_type || null,
+            start_date:           editForm.start_date || null,
+            build_assigned_date:  editForm.start_date || null,
+            kickoff_call_date:    editForm.kickoff_call_date || null,
+            web_build_start_date: editForm.web_build_start_date || null,
+            first_draft_sent_date:editForm.first_draft_sent_date || null,
+            due_date:             editForm.due_date || null,
+            build_live_date:      editForm.due_date || null,
+            stakeholder_name:     editForm.stakeholder_name || null,
+            stakeholder_email:    editForm.stakeholder_email || null,
+            client_id:            editForm.client_id || null,
+        }).eq('id', project.id)
         setLoading(false)
         if (!error) { setIsEditing(false); onUpdated() }
     }
@@ -418,20 +419,28 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                                             <input className="input" type="date" value={editForm.start_date} onChange={e => setEditForm(f => ({ ...f, start_date: e.target.value }))} />
                                         </div>
                                         <div>
-                                            <label className="label">Web Build Start Date</label>
-                                            <input className="input" type="date" value={editForm.web_build_start_date} onChange={e => setEditForm(f => ({ ...f, web_build_start_date: e.target.value }))} />
+                                            <label className="label">Kick-off Call Date</label>
+                                            <input className="input" type="date" value={editForm.kickoff_call_date} onChange={e => setEditForm(f => ({ ...f, kickoff_call_date: e.target.value }))} />
                                         </div>
                                     </div>
 
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                                         <div>
+                                            <label className="label">Web Build Start Date</label>
+                                            <input className="input" type="date" value={editForm.web_build_start_date} onChange={e => setEditForm(f => ({ ...f, web_build_start_date: e.target.value }))} />
+                                        </div>
+                                        <div>
                                             <label className="label">First Draft Sent Date</label>
                                             <input className="input" type="date" value={editForm.first_draft_sent_date} onChange={e => setEditForm(f => ({ ...f, first_draft_sent_date: e.target.value }))} />
                                         </div>
+                                    </div>
+
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                                         <div>
                                             <label className="label">Build Live Date</label>
                                             <input className="input" type="date" value={editForm.due_date} onChange={e => setEditForm(f => ({ ...f, due_date: e.target.value }))} />
                                         </div>
+                                        <div /> {/* spacer */}
                                     </div>
 
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
@@ -475,6 +484,7 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                                         },
                                         { l: 'Type of Project', v: project.project_type ? <span style={{ fontSize: 13, fontWeight: 600, padding: '3px 10px', borderRadius: 6, background: 'rgba(34,197,94,0.1)', color: 'var(--success)' }}>{project.project_type}</span> : '—' },
                                         { l: 'Build Assigned Date', v: project.start_date ? new Date(project.start_date).toLocaleDateString() : '—' },
+                                        { l: 'Kick-off Call Date', v: project.kickoff_call_date ? new Date(project.kickoff_call_date).toLocaleDateString() : '—' },
                                         { l: 'Web Build Start Date', v: project.web_build_start_date ? new Date(project.web_build_start_date).toLocaleDateString() : '—' },
                                         { l: 'First Draft Sent Date', v: project.first_draft_sent_date ? new Date(project.first_draft_sent_date).toLocaleDateString() : '—' },
                                         {
