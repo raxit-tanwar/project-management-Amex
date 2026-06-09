@@ -50,6 +50,10 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
     const [searchText, setSearchText] = useState('')
     const [showArchived, setShowArchived] = useState(false)
     const [autoOpenTab, setAutoOpenTab] = useState<string | undefined>(undefined)
+    const [sortField, setSortField] = useState<'stage' | 'buildType' | 'dueDate' | null>(null)
+    const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+    const [listStageFilter, setListStageFilter] = useState('')
+    const [listBuildTypeFilter, setListBuildTypeFilter] = useState('')
 
     // Date capture modal — opened AFTER stage move completes, completely decoupled from drag
     type DateStep = { stageName: string; field: string; label: string; value: string }
@@ -195,6 +199,34 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
             !p.stakeholder_name?.toLowerCase().includes(q)) return false
         return true
     })
+
+    const handleListSort = (field: 'stage' | 'buildType' | 'dueDate') => {
+        if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+        else { setSortField(field); setSortDir('asc') }
+    }
+    const sortIcon = (field: 'stage' | 'buildType' | 'dueDate') =>
+        sortField !== field ? '↕' : sortDir === 'asc' ? '↑' : '↓'
+
+    const uniqueStages = [...new Set(projects.map(p => p.stage?.name).filter(Boolean) as string[])].sort()
+    const uniqueBuildTypes = [...new Set(projects.map(p => p.build_type).filter(Boolean) as string[])].sort()
+
+    const listProjects = (() => {
+        let result = filteredProjects.filter(p => {
+            if (listStageFilter && p.stage?.name !== listStageFilter) return false
+            if (listBuildTypeFilter && p.build_type !== listBuildTypeFilter) return false
+            return true
+        })
+        if (sortField) {
+            result = [...result].sort((a, b) => {
+                let aVal: string, bVal: string
+                if (sortField === 'stage') { aVal = a.stage?.name ?? ''; bVal = b.stage?.name ?? '' }
+                else if (sortField === 'buildType') { aVal = a.build_type ?? ''; bVal = b.build_type ?? '' }
+                else { aVal = a.due_date ?? '9999'; bVal = b.due_date ?? '9999' }
+                return (sortDir === 'asc' ? 1 : -1) * aVal.localeCompare(bVal)
+            })
+        }
+        return result
+    })()
 
     const totalTime = (project: Project) =>
         (project.time_entries ?? []).reduce((s, e) => s + (e.duration_seconds || 0), 0)
@@ -431,18 +463,68 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                         {/* Header row */}
                         <div style={{
-                            display: 'grid', gridTemplateColumns: '1fr 120px 150px 90px 90px 80px',
-                            padding: '8px 16px', fontSize: 11, fontWeight: 700,
-                            color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.06em'
+                            display: 'grid', gridTemplateColumns: '1fr 140px 160px 100px 80px 70px',
+                            padding: '6px 16px', borderBottom: '2px solid var(--border)',
                         }}>
-                            <span>Project</span>
-                            <span>Stage</span>
-                            <span>Build Type</span>
-                            <span>Live Date</span>
-                            <span>Time</span>
-                            <span>Checklist</span>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Project</span>
+
+                            {/* Stage — sortable + filterable */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                <button onClick={() => handleListSort('stage')} style={{
+                                    background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                                    fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
+                                    color: sortField === 'stage' ? '#6366f1' : 'var(--text-dim)',
+                                    display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'inherit'
+                                }}>
+                                    Stage <span style={{ fontSize: 10, opacity: sortField === 'stage' ? 1 : 0.4 }}>{sortIcon('stage')}</span>
+                                </button>
+                                <select value={listStageFilter} onChange={e => setListStageFilter(e.target.value)} style={{
+                                    fontSize: 10, padding: '2px 4px', borderRadius: 4, fontFamily: 'inherit',
+                                    border: `1px solid ${listStageFilter ? '#6366f1' : 'var(--border)'}`,
+                                    background: listStageFilter ? 'rgba(99,102,241,0.08)' : 'var(--surface2)',
+                                    color: listStageFilter ? '#6366f1' : 'var(--text-dim)', cursor: 'pointer', maxWidth: '100%'
+                                }}>
+                                    <option value="">All stages</option>
+                                    {uniqueStages.map(s => <option key={s} value={s}>{s}</option>)}
+                                </select>
+                            </div>
+
+                            {/* Build Type — sortable + filterable */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                <button onClick={() => handleListSort('buildType')} style={{
+                                    background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                                    fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
+                                    color: sortField === 'buildType' ? '#6366f1' : 'var(--text-dim)',
+                                    display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'inherit'
+                                }}>
+                                    Build Type <span style={{ fontSize: 10, opacity: sortField === 'buildType' ? 1 : 0.4 }}>{sortIcon('buildType')}</span>
+                                </button>
+                                <select value={listBuildTypeFilter} onChange={e => setListBuildTypeFilter(e.target.value)} style={{
+                                    fontSize: 10, padding: '2px 4px', borderRadius: 4, fontFamily: 'inherit',
+                                    border: `1px solid ${listBuildTypeFilter ? '#6366f1' : 'var(--border)'}`,
+                                    background: listBuildTypeFilter ? 'rgba(99,102,241,0.08)' : 'var(--surface2)',
+                                    color: listBuildTypeFilter ? '#6366f1' : 'var(--text-dim)', cursor: 'pointer', maxWidth: '100%'
+                                }}>
+                                    <option value="">All types</option>
+                                    {uniqueBuildTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                                </select>
+                            </div>
+
+                            {/* Live Date — sortable */}
+                            <button onClick={() => handleListSort('dueDate')} style={{
+                                background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                                fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
+                                color: sortField === 'dueDate' ? '#6366f1' : 'var(--text-dim)',
+                                display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'inherit', alignSelf: 'start'
+                            }}>
+                                Live Date <span style={{ fontSize: 10, opacity: sortField === 'dueDate' ? 1 : 0.4 }}>{sortIcon('dueDate')}</span>
+                            </button>
+
+                            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Time</span>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>✓</span>
                         </div>
-                        {filteredProjects.map(project => {
+
+                        {listProjects.map(project => {
                             const checklist = project.checklist_items ?? []
                             const done = checklist.filter(c => c.checked).length
                             const overdue = isOverdue(project.due_date)
@@ -452,37 +534,43 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                                     key={project.id}
                                     className="card"
                                     style={{
-                                        display: 'grid', gridTemplateColumns: '1fr 120px 150px 90px 90px 80px',
-                                        padding: '14px 16px', cursor: 'pointer',
+                                        display: 'grid', gridTemplateColumns: '1fr 140px 160px 100px 80px 70px',
+                                        padding: '12px 16px', cursor: 'pointer',
                                         borderLeft: `3px solid ${stageColor}`,
-                                        transition: 'all 0.15s ease'
+                                        transition: 'all 0.15s ease', alignItems: 'center'
                                     }}
                                     onClick={() => { setSelectedProject(project); setAutoOpenTab(undefined) }}
                                     onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--border2)'}
                                     onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'}
                                 >
-                                    <div>
-                                        <div style={{ fontWeight: 600, fontSize: 14 }}>
-                                            {project.event_code && <span style={{ color: 'var(--accent-light)', marginRight: 6, fontSize: 12 }}>{project.event_code}</span>}
+                                    {/* Project name + event code + client — all on one line */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flexWrap: 'wrap' }}>
+                                        {project.event_code && (
+                                            <span style={{ color: 'var(--accent-light)', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
+                                                {project.event_code}
+                                            </span>
+                                        )}
+                                        <span style={{ fontWeight: 600, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                             {project.name}
-                                        </div>
+                                        </span>
                                         {project.client?.name && (
                                             <span style={{
-                                                fontSize: 11, fontWeight: 600, padding: '1px 7px', borderRadius: 5,
+                                                fontSize: 11, fontWeight: 600, padding: '1px 7px', borderRadius: 5, flexShrink: 0,
                                                 background: `${project.client_color ?? '#6366f1'}18`,
-                                                color: project.client_color ?? '#6366f1', marginTop: 4, display: 'inline-block'
+                                                color: project.client_color ?? '#6366f1',
                                             }}>{project.client.name}</span>
                                         )}
                                     </div>
+
                                     <div>
                                         {project.stage && (
                                             <span style={{
-                                                fontSize: 12, fontWeight: 600, padding: '3px 10px', borderRadius: 6,
+                                                fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 6,
                                                 background: `${project.stage.color}18`, color: project.stage.color
                                             }}>{project.stage.name}</span>
                                         )}
                                     </div>
-                                    <div style={{ fontSize: 12, color: 'var(--accent-light)', fontWeight: 600 }}>
+                                    <div style={{ fontSize: 12, color: 'var(--accent-light)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                         {project.build_type ?? '—'}
                                     </div>
                                     <div style={{
@@ -501,11 +589,15 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                                 </div>
                             )
                         })}
-                        {filteredProjects.length === 0 && (
+                        {listProjects.length === 0 && (
                             <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-dim)' }}>
                                 <div style={{ fontSize: 40, marginBottom: 12 }}>📋</div>
-                                <p style={{ fontWeight: 600, marginBottom: 8 }}>No projects yet</p>
-                                <p style={{ fontSize: 13 }}>Create your first project to get started.</p>
+                                <p style={{ fontWeight: 600, marginBottom: 8 }}>
+                                    {listStageFilter || listBuildTypeFilter ? 'No matching projects' : 'No projects yet'}
+                                </p>
+                                <p style={{ fontSize: 13 }}>
+                                    {listStageFilter || listBuildTypeFilter ? 'Try clearing the filters above.' : 'Create your first project to get started.'}
+                                </p>
                             </div>
                         )}
                     </div>
