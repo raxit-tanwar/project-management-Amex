@@ -64,10 +64,11 @@ const TABS: { id: TabId; label: string; icon: string }[] = [
 
 export default function ProjectDetailPanel({ project, userId, stages, clients, onClose, onUpdated, initialTab }: ProjectDetailPanelProps) {
     const supabase = createClient()
-    const { startTimer, stopTimer, activeTimer, displayTime } = useTimer()
+    const { startTimer, stopTimer, activeTimer, displayTime, timerNotes: ctxTimerNotes, timerTag: ctxTimerTag, setTimerNotes, setTimerTag } = useTimer()
+    const isTimerForThisProject = activeTimer?.projectId === project.id
     const [tab, setTab] = useState<TabId>(initialTab ?? 'overview')
-    const [timerDescription, setTimerDescription] = useState('')
-    const [selectedTag, setSelectedTag] = useState('')
+    const [timerDescription, setTimerDescription] = useState(isTimerForThisProject ? ctxTimerNotes : '')
+    const [selectedTag, setSelectedTag] = useState(isTimerForThisProject ? ctxTimerTag : '')
     const [editingEntryId, setEditingEntryId] = useState<string | null>(null)
     const [editingNotes, setEditingNotes] = useState('')
     const [tasks, setTasks] = useState<Task[]>([])
@@ -754,7 +755,11 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                                 <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)' }}>
                                     <input
                                         value={timerDescription}
-                                        onChange={e => setTimerDescription(e.target.value)}
+                                        onChange={e => {
+                                            const val = e.target.value
+                                            setTimerDescription(val)
+                                            if (!activeTimer || isTimerForThisProject) setTimerNotes(val)
+                                        }}
                                         placeholder="Describe what you're working on… (optional)"
                                         style={{ width: '100%', border: 'none', outline: 'none', background: 'transparent', fontSize: 14, color: 'var(--text)', fontFamily: 'inherit' }}
                                     />
@@ -764,7 +769,11 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                                 <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)' }}>
                                     <select
                                         value={selectedTag}
-                                        onChange={e => setSelectedTag(e.target.value)}
+                                        onChange={e => {
+                                            const val = e.target.value
+                                            setSelectedTag(val)
+                                            if (!activeTimer || isTimerForThisProject) setTimerTag(val)
+                                        }}
                                         style={{ width: '100%', border: 'none', outline: 'none', background: 'transparent', fontSize: 13, color: selectedTag ? 'var(--text)' : 'var(--text-dim)', fontFamily: 'inherit', cursor: 'pointer' }}
                                     >
                                         <option value="">Select a tag… (optional)</option>

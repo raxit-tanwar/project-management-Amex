@@ -29,6 +29,10 @@ interface TimerContextType {
     setSelection: (s: { projectId: string | null; taskId: string | null }) => void
     pendingOpen: { projectId: string; tab: string } | null
     setPendingOpen: (v: { projectId: string; tab: string } | null) => void
+    timerNotes: string
+    timerTag: string
+    setTimerNotes: (n: string) => void
+    setTimerTag: (t: string) => void
 }
 
 const defaultTimer: TimerState = {
@@ -44,6 +48,7 @@ const defaultTimer: TimerState = {
 }
 
 const STORAGE_KEY = 'flowdesk_active_timer'
+const SESSION_META_KEY = 'flowdesk_timer_session_meta'
 
 interface PersistedTimer {
     startedAt: number
@@ -102,6 +107,8 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
     const [selection, setSelection] = useState<{ projectId: string | null; taskId: string | null }>({ projectId: null, taskId: null })
     const [todaySeconds, setTodaySeconds] = useState(0)
     const [pendingOpen, setPendingOpen] = useState<{ projectId: string; tab: string } | null>(null)
+    const [timerNotes, setTimerNotes] = useState('')
+    const [timerTag, setTimerTag] = useState('')
     const intervalRef = useRef<NodeJS.Timeout | null>(null)
     const supabase = createClient()
 
@@ -113,6 +120,15 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
             intervalRef.current = null
         }
     }
+
+    // Persist notes+tag to localStorage whenever they change
+    useEffect(() => {
+        if (timerNotes || timerTag) {
+            localStorage.setItem(SESSION_META_KEY, JSON.stringify({ notes: timerNotes, tag: timerTag }))
+        } else {
+            localStorage.removeItem(SESSION_META_KEY)
+        }
+    }, [timerNotes, timerTag])
 
     const stopTimer = useCallback(async (notes?: string, tag?: string) => {
         if (timer.startedAt && timer.seconds > 0) {
@@ -136,9 +152,12 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
                 console.error('Failed to save time entry:', err)
             }
         }
+        localStorage.removeItem(SESSION_META_KEY)
+        setTimerNotes('')
+        setTimerTag('')
         clearStorage()
         setTimer(defaultTimer)
-    }, [timer, supabase])
+    }, [timer, supabase]) // eslint-disable-line react-hooks/exhaustive-deps
 
     const startTimer = useCallback(async (opts?: {
         projectId?: string; projectName?: string; taskId?: string; taskName?: string; mode?: TimerState['mode']
@@ -210,6 +229,16 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
             // Restore timer that was running before refresh
             const restored = restoreFromStorage()
             if (restored) setTimer(restored)
+
+            // Restore in-progress description + tag
+            try {
+                const metaRaw = localStorage.getItem(SESSION_META_KEY)
+                if (metaRaw) {
+                    const meta = JSON.parse(metaRaw) as { notes?: string; tag?: string }
+                    if (meta.notes) setTimerNotes(meta.notes)
+                    if (meta.tag) setTimerTag(meta.tag)
+                }
+            } catch {}
         }
         init()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -229,6 +258,10 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
             setSelection,
             pendingOpen,
             setPendingOpen,
+            timerNotes,
+            timerTag,
+            setTimerNotes,
+            setTimerTag,
         }}>
             {children}
         </TimerContext.Provider>
