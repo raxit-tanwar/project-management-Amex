@@ -9,7 +9,7 @@ interface Stage { id: string; name: string; color: string }
 interface Task { id: string; name: string; description?: string; position: number }
 interface NotesLog { id: string; content: string; created_at: string; user_id: string }
 interface ChecklistItem { id: string; text: string; checked: boolean; checked_at?: string }
-interface TimeEntry { id: string; started_at: string; ended_at?: string; duration_seconds?: number; notes?: string | null; tags?: string[] | null; task_id?: string }
+interface TimeEntry { id: string; started_at: string; ended_at?: string; duration_seconds?: number; notes?: string | null; tag?: string | null; task_id?: string }
 
 interface Project {
     id: string; name: string; event_code?: string; client_id?: string; client?: { name: string }; client_color?: string
@@ -67,10 +67,9 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
     const { startTimer, stopTimer, activeTimer, displayTime } = useTimer()
     const [tab, setTab] = useState<TabId>(initialTab ?? 'overview')
     const [timerDescription, setTimerDescription] = useState('')
-    const [selectedTags, setSelectedTags] = useState<string[]>([])
+    const [selectedTag, setSelectedTag] = useState('')
     const [editingEntryId, setEditingEntryId] = useState<string | null>(null)
     const [editingNotes, setEditingNotes] = useState('')
-    const [editingTagsEntryId, setEditingTagsEntryId] = useState<string | null>(null)
     const [tasks, setTasks] = useState<Task[]>([])
     const [checklist, setChecklist] = useState<ChecklistItem[]>([])
     const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([])
@@ -170,14 +169,11 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
     }
 
     const handleTimerStop = async () => {
-        await stopTimer(timerDescription || undefined, selectedTags)
+        await stopTimer(timerDescription || undefined, selectedTag || undefined)
         setTimerDescription('')
-        setSelectedTags([])
+        setSelectedTag('')
         await refreshTimeEntries()
     }
-
-    const toggleTag = (tag: string) =>
-        setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag])
 
     const saveEntryNotes = async (entryId: string, notes: string) => {
         await supabase.from('time_entries').update({ notes: notes || null }).eq('id', entryId)
@@ -185,10 +181,9 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
         setEditingEntryId(null)
     }
 
-    const toggleEntryTag = async (entryId: string, tag: string, currentTags: string[]) => {
-        const next = currentTags.includes(tag) ? currentTags.filter(t => t !== tag) : [...currentTags, tag]
-        await supabase.from('time_entries').update({ tags: next.length > 0 ? next : null }).eq('id', entryId)
-        setTimeEntries(prev => prev.map(e => e.id === entryId ? { ...e, tags: next } : e))
+    const saveEntryTag = async (entryId: string, tag: string) => {
+        await supabase.from('time_entries').update({ tag: tag || null }).eq('id', entryId)
+        setTimeEntries(prev => prev.map(e => e.id === entryId ? { ...e, tag: tag || null } : e))
     }
 
     // Tasks
@@ -765,25 +760,16 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                                     />
                                 </div>
 
-                                {/* Tag selector */}
+                                {/* Tag selector — single select dropdown */}
                                 <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)' }}>
-                                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Tags</div>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                                        {TIME_TAGS.map(tag => {
-                                            const active = selectedTags.includes(tag)
-                                            return (
-                                                <button key={tag} onClick={() => toggleTag(tag)} style={{
-                                                    padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                                                    background: active ? '#6366f1' : 'var(--surface)',
-                                                    color: active ? 'white' : 'var(--text-muted)',
-                                                    border: `1px solid ${active ? '#6366f1' : 'var(--border)'}`,
-                                                    transition: 'all 0.15s',
-                                                }}>
-                                                    {tag}
-                                                </button>
-                                            )
-                                        })}
-                                    </div>
+                                    <select
+                                        value={selectedTag}
+                                        onChange={e => setSelectedTag(e.target.value)}
+                                        style={{ width: '100%', border: 'none', outline: 'none', background: 'transparent', fontSize: 13, color: selectedTag ? 'var(--text)' : 'var(--text-dim)', fontFamily: 'inherit', cursor: 'pointer' }}
+                                    >
+                                        <option value="">Select a tag… (optional)</option>
+                                        {TIME_TAGS.map(tag => <option key={tag} value={tag}>{tag}</option>)}
+                                    </select>
                                 </div>
 
                                 {/* Start / Stop button */}
@@ -833,9 +819,7 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                                 )}
                                 {timeEntries.map(entry => {
                                     const task = tasks.find(t => t.id === entry.task_id)
-                                    const entryTags = entry.tags ?? []
                                     const isEditingThis = editingEntryId === entry.id
-                                    const isEditingTagsThis = editingTagsEntryId === entry.id
                                     return (
                                         <div key={entry.id} style={{
                                             background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden'
@@ -879,45 +863,27 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                                                 </div>
                                             </div>
 
-                                            {/* Tags row */}
-                                            <div style={{ padding: '8px 14px 10px', borderTop: '1px solid var(--border)', display: 'flex', flexWrap: 'wrap', gap: 5, alignItems: 'center' }}>
-                                                {entryTags.map(tag => (
-                                                    <span key={tag} style={{
-                                                        padding: '3px 9px', borderRadius: 20, fontSize: 11, fontWeight: 600,
+                                            {/* Tag row — single dropdown */}
+                                            <div style={{ padding: '8px 14px 10px', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                {entry.tag ? (
+                                                    <span style={{
+                                                        padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
                                                         background: 'rgba(99,102,241,0.12)', color: 'var(--accent-light)',
-                                                        border: '1px solid rgba(99,102,241,0.2)'
-                                                    }}>{tag}</span>
-                                                ))}
-                                                <button
-                                                    onClick={() => setEditingTagsEntryId(isEditingTagsThis ? null : entry.id)}
+                                                        border: '1px solid rgba(99,102,241,0.2)', flexShrink: 0
+                                                    }}>{entry.tag}</span>
+                                                ) : null}
+                                                <select
+                                                    value={entry.tag ?? ''}
+                                                    onChange={e => saveEntryTag(entry.id, e.target.value)}
                                                     style={{
-                                                        padding: '3px 9px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                                                        background: 'transparent', color: 'var(--text-dim)', border: '1px dashed var(--border)',
+                                                        flex: 1, border: 'none', outline: 'none', background: 'transparent',
+                                                        fontSize: 11, color: 'var(--text-dim)', fontFamily: 'inherit', cursor: 'pointer'
                                                     }}
                                                 >
-                                                    {isEditingTagsThis ? 'Done' : entryTags.length === 0 ? '+ Add tags' : '✎'}
-                                                </button>
+                                                    <option value="">{entry.tag ? 'Change tag…' : 'Add a tag…'}</option>
+                                                    {TIME_TAGS.map(tag => <option key={tag} value={tag}>{tag}</option>)}
+                                                </select>
                                             </div>
-
-                                            {/* Inline tag editor */}
-                                            {isEditingTagsThis && (
-                                                <div style={{ padding: '8px 14px 12px', borderTop: '1px solid var(--border)', display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                                                    {TIME_TAGS.map(tag => {
-                                                        const active = entryTags.includes(tag)
-                                                        return (
-                                                            <button key={tag} onClick={() => toggleEntryTag(entry.id, tag, entryTags)} style={{
-                                                                padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                                                                background: active ? '#6366f1' : 'var(--surface)',
-                                                                color: active ? 'white' : 'var(--text-muted)',
-                                                                border: `1px solid ${active ? '#6366f1' : 'var(--border)'}`,
-                                                                transition: 'all 0.15s',
-                                                            }}>
-                                                                {tag}
-                                                            </button>
-                                                        )
-                                                    })}
-                                                </div>
-                                            )}
                                         </div>
                                     )
                                 })}

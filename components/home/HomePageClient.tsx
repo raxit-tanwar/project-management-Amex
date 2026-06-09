@@ -18,11 +18,9 @@ interface HomePageClientProps {
     initialProjects: Project[]
     initialStages: Stage[]
     initialClients: Client[]
-    openProjectId?: string
-    openTab?: string
 }
 
-export default function HomePageClient({ userId, userDisplayName, initialProjects, initialStages, initialClients, openProjectId, openTab }: HomePageClientProps) {
+export default function HomePageClient({ userId, userDisplayName, initialProjects, initialStages, initialClients }: HomePageClientProps) {
     const hour = new Date().getHours()
     const greeting = hour < 12 ? 'Morning' : hour < 17 ? 'Afternoon' : 'Evening'
 
@@ -47,8 +45,6 @@ export default function HomePageClient({ userId, userDisplayName, initialProject
                     initialProjects={initialProjects as unknown as Parameters<typeof BoardClient>[0]['initialProjects']}
                     initialClients={initialClients}
                     embedded={true}
-                    openProjectId={openProjectId}
-                    openTab={openTab}
                 />
             </div>
         </div>

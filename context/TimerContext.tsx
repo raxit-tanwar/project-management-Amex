@@ -23,10 +23,12 @@ interface TimerContextType {
     todaySeconds: number
     startTimer: (opts?: { projectId?: string; projectName?: string; taskId?: string; taskName?: string; mode?: TimerState['mode'] }) => void
     pauseTimer: () => void
-    stopTimer: (notes?: string, tags?: string[]) => Promise<void>
+    stopTimer: (notes?: string, tag?: string) => Promise<void>
     resetTimer: () => void
     selection: { projectId: string | null; taskId: string | null }
     setSelection: (s: { projectId: string | null; taskId: string | null }) => void
+    pendingOpen: { projectId: string; tab: string } | null
+    setPendingOpen: (v: { projectId: string; tab: string } | null) => void
 }
 
 const defaultTimer: TimerState = {
@@ -99,6 +101,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
     const [timer, setTimer] = useState<TimerState>(defaultTimer)
     const [selection, setSelection] = useState<{ projectId: string | null; taskId: string | null }>({ projectId: null, taskId: null })
     const [todaySeconds, setTodaySeconds] = useState(0)
+    const [pendingOpen, setPendingOpen] = useState<{ projectId: string; tab: string } | null>(null)
     const intervalRef = useRef<NodeJS.Timeout | null>(null)
     const supabase = createClient()
 
@@ -111,7 +114,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
         }
     }
 
-    const stopTimer = useCallback(async (notes?: string, tags?: string[]) => {
+    const stopTimer = useCallback(async (notes?: string, tag?: string) => {
         if (timer.startedAt && timer.seconds > 0) {
             try {
                 const { data: { user: u }, error } = await supabase.auth.getUser()
@@ -125,7 +128,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
                         ended_at: endedAt.toISOString(),
                         duration_seconds: timer.seconds,
                         notes: notes || null,
-                        tags: tags && tags.length > 0 ? tags : null,
+                        tag: tag || null,
                     })
                     setTodaySeconds(s => s + timer.seconds)
                 }
@@ -223,7 +226,9 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
             stopTimer,
             resetTimer,
             selection,
-            setSelection
+            setSelection,
+            pendingOpen,
+            setPendingOpen,
         }}>
             {children}
         </TimerContext.Provider>

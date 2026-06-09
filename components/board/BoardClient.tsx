@@ -6,6 +6,7 @@ import ProjectCard from './ProjectCard'
 import NewProjectModal from './NewProjectModal'
 import ProjectDetailPanel from './ProjectDetailPanel'
 import { isOverdue } from '@/lib/utils'
+import { useTimer } from '@/context/TimerContext'
 
 interface Stage { id: string; name: string; color: string; position: number }
 interface Project {
@@ -35,6 +36,7 @@ interface BoardClientProps {
 
 export default function BoardClient({ userId, userDisplayName, initialStages, initialProjects, initialClients, embedded, openProjectId, openTab }: BoardClientProps) {
     const supabase = createClient()
+    const { pendingOpen, setPendingOpen } = useTimer()
     const [stages] = useState(() => [...initialStages].sort((a, b) => a.position - b.position))
     const [projects, setProjects] = useState(initialProjects)
     const [clients, setClients] = useState(initialClients)
@@ -83,7 +85,18 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
 
     const refresh = useCallback(() => fetchProjects(showArchived), [fetchProjects, showArchived])
 
-    // Auto-open a specific project (e.g. when navigating from the sidebar timer indicator)
+    // React to sidebar timer click: pendingOpen is set in TimerContext, consumed here
+    useEffect(() => {
+        if (!pendingOpen) return
+        const p = projects.find(proj => proj.id === pendingOpen.projectId)
+        if (p) {
+            setSelectedProject(p)
+            setAutoOpenTab(pendingOpen.tab)
+            setPendingOpen(null)
+        }
+    }, [pendingOpen]) // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Fallback: also support openProjectId prop (URL-based navigation)
     useEffect(() => {
         if (!openProjectId) return
         const p = projects.find(proj => proj.id === openProjectId)

@@ -22,7 +22,7 @@ export default function Sidebar({ user }: SidebarProps) {
     const pathname = usePathname()
     const router = useRouter()
     const [signingOut, setSigningOut] = useState(false)
-    const { timer, displayTime } = useTimer()
+    const { timer, displayTime, setPendingOpen } = useTimer()
 
     async function handleSignOut() {
         setSigningOut(true)
@@ -93,7 +93,10 @@ export default function Sidebar({ user }: SidebarProps) {
             {/* Global timer indicator */}
             {timer.isRunning && timer.projectId && (
                 <button
-                    onClick={() => router.push(`/dashboard?project=${timer.projectId}&tab=timelog`)}
+                    onClick={() => {
+                        setPendingOpen({ projectId: timer.projectId!, tab: 'timelog' })
+                        router.push('/dashboard')
+                    }}
                     style={{
                         width: '100%', marginBottom: 12,
                         padding: '10px 12px', borderRadius: 10,
