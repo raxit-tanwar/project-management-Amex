@@ -30,9 +30,10 @@ interface BoardClientProps {
     initialClients: Client[]
     embedded?: boolean
     openProjectId?: string  // auto-open this project's detail panel on mount (from sidebar timer)
+    openTab?: string        // which tab to open when auto-opening (e.g. 'timelog')
 }
 
-export default function BoardClient({ userId, userDisplayName, initialStages, initialProjects, initialClients, embedded, openProjectId }: BoardClientProps) {
+export default function BoardClient({ userId, userDisplayName, initialStages, initialProjects, initialClients, embedded, openProjectId, openTab }: BoardClientProps) {
     const supabase = createClient()
     const [stages] = useState(() => [...initialStages].sort((a, b) => a.position - b.position))
     const [projects, setProjects] = useState(initialProjects)
@@ -45,6 +46,7 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
     const [dragOverStage, setDragOverStage] = useState<string | null>(null)
     const [searchText, setSearchText] = useState('')
     const [showArchived, setShowArchived] = useState(false)
+    const [autoOpenTab, setAutoOpenTab] = useState<string | undefined>(undefined)
 
     // Date capture modal — opened AFTER stage move completes, completely decoupled from drag
     type DateStep = { stageName: string; field: string; label: string; value: string }
@@ -85,7 +87,7 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
     useEffect(() => {
         if (!openProjectId) return
         const p = projects.find(proj => proj.id === openProjectId)
-        if (p) setSelectedProject(p)
+        if (p) { setSelectedProject(p); setAutoOpenTab(openTab) }
     }, [openProjectId]) // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleDragStart = (e: React.DragEvent, projectId: string) => {
@@ -328,7 +330,7 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                                                 project={project}
                                                 totalSeconds={totalTime(project)}
                                                 formatHours={formatHours}
-                                                onClick={() => setSelectedProject(project)}
+                                                onClick={() => { setSelectedProject(project); setAutoOpenTab(undefined) }}
                                                 onRefresh={refresh}
                                             />
                                         </div>
@@ -379,7 +381,7 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                                         borderLeft: `3px solid ${stageColor}`,
                                         transition: 'all 0.15s ease'
                                     }}
-                                    onClick={() => setSelectedProject(project)}
+                                    onClick={() => { setSelectedProject(project); setAutoOpenTab(undefined) }}
                                     onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--border2)'}
                                     onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'}
                                 >
@@ -450,10 +452,12 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                     userId={userId}
                     stages={stages}
                     clients={clients}
-                    onClose={() => setSelectedProject(null)}
+                    initialTab={autoOpenTab as any}
+                    onClose={() => { setSelectedProject(null); setAutoOpenTab(undefined) }}
                     onUpdated={async () => {
                         await refresh()
                         setSelectedProject(null)
+                        setAutoOpenTab(undefined)
                     }}
                 />
             )}

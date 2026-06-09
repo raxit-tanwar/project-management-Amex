@@ -23,7 +23,7 @@ interface TimerContextType {
     todaySeconds: number
     startTimer: (opts?: { projectId?: string; projectName?: string; taskId?: string; taskName?: string; mode?: TimerState['mode'] }) => void
     pauseTimer: () => void
-    stopTimer: (notes?: string) => Promise<void>
+    stopTimer: (notes?: string, tags?: string[]) => Promise<void>
     resetTimer: () => void
     selection: { projectId: string | null; taskId: string | null }
     setSelection: (s: { projectId: string | null; taskId: string | null }) => void
@@ -111,7 +111,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
         }
     }
 
-    const stopTimer = useCallback(async (notes?: string) => {
+    const stopTimer = useCallback(async (notes?: string, tags?: string[]) => {
         if (timer.startedAt && timer.seconds > 0) {
             try {
                 const { data: { user: u }, error } = await supabase.auth.getUser()
@@ -125,6 +125,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
                         ended_at: endedAt.toISOString(),
                         duration_seconds: timer.seconds,
                         notes: notes || null,
+                        tags: tags && tags.length > 0 ? tags : null,
                     })
                     setTodaySeconds(s => s + timer.seconds)
                 }

@@ -93,7 +93,7 @@ export default function Sidebar({ user }: SidebarProps) {
             {/* Global timer indicator */}
             {timer.isRunning && timer.projectId && (
                 <button
-                    onClick={() => router.push(`/dashboard?project=${timer.projectId}`)}
+                    onClick={() => router.push(`/dashboard?project=${timer.projectId}&tab=timelog`)}
                     style={{
                         width: '100%', marginBottom: 12,
                         padding: '10px 12px', borderRadius: 10,

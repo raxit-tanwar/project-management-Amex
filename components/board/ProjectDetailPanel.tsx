@@ -9,7 +9,7 @@ interface Stage { id: string; name: string; color: string }
 interface Task { id: string; name: string; description?: string; position: number }
 interface NotesLog { id: string; content: string; created_at: string; user_id: string }
 interface ChecklistItem { id: string; text: string; checked: boolean; checked_at?: string }
-interface TimeEntry { id: string; started_at: string; ended_at?: string; duration_seconds?: number; notes?: string; task_id?: string }
+interface TimeEntry { id: string; started_at: string; ended_at?: string; duration_seconds?: number; notes?: string | null; tags?: string[] | null; task_id?: string }
 
 interface Project {
     id: string; name: string; event_code?: string; client_id?: string; client?: { name: string }; client_color?: string
@@ -27,7 +27,20 @@ interface ProjectDetailPanelProps {
     clients: { id: string; name: string }[]
     onClose: () => void
     onUpdated: () => void
+    initialTab?: TabId
 }
+
+const TIME_TAGS = [
+    'Custom Task - Client',
+    'Edits/Updates',
+    'General Enquiries',
+    'Review Calls',
+    'Mobile App Setup',
+    'Product - Customer Support',
+    'Registration Website Setup',
+    'Self QC',
+    'Attendee Management',
+]
 
 const PRIMARY_BUILD_TYPES = [
     'Registration Website',
@@ -49,11 +62,15 @@ const TABS: { id: TabId; label: string; icon: string }[] = [
     { id: 'notes', label: 'Notes', icon: '📝' },
 ]
 
-export default function ProjectDetailPanel({ project, userId, stages, clients, onClose, onUpdated }: ProjectDetailPanelProps) {
+export default function ProjectDetailPanel({ project, userId, stages, clients, onClose, onUpdated, initialTab }: ProjectDetailPanelProps) {
     const supabase = createClient()
     const { startTimer, stopTimer, activeTimer, displayTime } = useTimer()
-    const [tab, setTab] = useState<TabId>('overview')
+    const [tab, setTab] = useState<TabId>(initialTab ?? 'overview')
     const [timerDescription, setTimerDescription] = useState('')
+    const [selectedTags, setSelectedTags] = useState<string[]>([])
+    const [editingEntryId, setEditingEntryId] = useState<string | null>(null)
+    const [editingNotes, setEditingNotes] = useState('')
+    const [editingTagsEntryId, setEditingTagsEntryId] = useState<string | null>(null)
     const [tasks, setTasks] = useState<Task[]>([])
     const [checklist, setChecklist] = useState<ChecklistItem[]>([])
     const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([])
@@ -153,9 +170,25 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
     }
 
     const handleTimerStop = async () => {
-        await stopTimer(timerDescription || undefined)
+        await stopTimer(timerDescription || undefined, selectedTags)
         setTimerDescription('')
+        setSelectedTags([])
         await refreshTimeEntries()
+    }
+
+    const toggleTag = (tag: string) =>
+        setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag])
+
+    const saveEntryNotes = async (entryId: string, notes: string) => {
+        await supabase.from('time_entries').update({ notes: notes || null }).eq('id', entryId)
+        setTimeEntries(prev => prev.map(e => e.id === entryId ? { ...e, notes: notes || null } : e))
+        setEditingEntryId(null)
+    }
+
+    const toggleEntryTag = async (entryId: string, tag: string, currentTags: string[]) => {
+        const next = currentTags.includes(tag) ? currentTags.filter(t => t !== tag) : [...currentTags, tag]
+        await supabase.from('time_entries').update({ tags: next.length > 0 ? next : null }).eq('id', entryId)
+        setTimeEntries(prev => prev.map(e => e.id === entryId ? { ...e, tags: next } : e))
     }
 
     // Tasks
@@ -694,60 +727,90 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                     {/* TIME LOG */}
                     {tab === 'timelog' && (
                         <div>
-                            {/* ── Timer controls ── */}
-                            {activeTimer?.projectId === project.id ? (
-                                /* Running — show live indicator + stop */
-                                <div style={{
-                                    marginBottom: 20, padding: '16px 18px',
-                                    background: 'rgba(22,163,74,0.08)', border: '1px solid rgba(22,163,74,0.3)',
-                                    borderRadius: 12, display: 'flex', alignItems: 'center', gap: 14
-                                }}>
-                                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#16a34a', boxShadow: '0 0 0 3px rgba(22,163,74,0.25)', flexShrink: 0, animation: 'pulse 2s infinite' }} />
-                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                        <div style={{ fontSize: 11, fontWeight: 700, color: '#16a34a', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>Recording</div>
-                                        <div style={{ fontSize: 13, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                            {activeTimer.taskName || 'General project time'}
-                                        </div>
-                                    </div>
-                                    <div style={{ fontSize: 24, fontWeight: 900, fontFamily: 'monospace', color: '#16a34a', letterSpacing: '0.04em', flexShrink: 0 }}>
-                                        {displayTime}
-                                    </div>
-                                    <button
-                                        onClick={handleTimerStop}
-                                        style={{ width: 36, height: 36, borderRadius: '50%', background: '#dc2626', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(220,38,38,0.3)', flexShrink: 0 }}
-                                        title="Stop timer"
-                                    >
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="white"><rect x="4" y="4" width="16" height="16" rx="2" /></svg>
-                                    </button>
+                            {/* ── Timer control card ── */}
+                            <div style={{
+                                marginBottom: 20, borderRadius: 12, overflow: 'hidden',
+                                border: activeTimer?.projectId === project.id
+                                    ? '1px solid rgba(22,163,74,0.35)'
+                                    : '1px solid var(--border)',
+                                background: activeTimer?.projectId === project.id
+                                    ? 'rgba(22,163,74,0.06)'
+                                    : 'var(--surface2)',
+                            }}>
+                                {/* Status row */}
+                                <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid var(--border)' }}>
+                                    {activeTimer?.projectId === project.id && (
+                                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#16a34a', boxShadow: '0 0 0 3px rgba(22,163,74,0.25)', flexShrink: 0 }} />
+                                    )}
+                                    <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: activeTimer?.projectId === project.id ? '#16a34a' : 'var(--text-muted)' }}>
+                                        {activeTimer?.projectId === project.id ? 'Recording' : 'Start a session'}
+                                    </span>
+                                    {activeTimer?.projectId === project.id && (
+                                        <span style={{ marginLeft: 'auto', fontSize: 22, fontWeight: 900, fontFamily: 'monospace', color: '#16a34a', letterSpacing: '0.04em' }}>
+                                            {displayTime}
+                                        </span>
+                                    )}
+                                    {activeTimer && activeTimer.projectId !== project.id && (
+                                        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--warning)', fontWeight: 600 }}>Will stop current timer</span>
+                                    )}
                                 </div>
-                            ) : (
-                                /* Idle — show start controls */
-                                <div style={{
-                                    marginBottom: 20, padding: '14px 16px',
-                                    background: 'var(--surface2)', border: '1px solid var(--border)',
-                                    borderRadius: 12, display: 'flex', alignItems: 'center', gap: 10
-                                }}>
+
+                                {/* Description — always editable */}
+                                <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)' }}>
                                     <input
                                         value={timerDescription}
                                         onChange={e => setTimerDescription(e.target.value)}
-                                        onKeyDown={e => e.key === 'Enter' && startTimer({ projectId: project.id, projectName: project.name, taskName: timerDescription || undefined, mode: 'project' })}
-                                        placeholder="What are you working on? (optional)"
-                                        style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontSize: 14, color: 'var(--text)', fontFamily: 'inherit' }}
+                                        placeholder="Describe what you're working on… (optional)"
+                                        style={{ width: '100%', border: 'none', outline: 'none', background: 'transparent', fontSize: 14, color: 'var(--text)', fontFamily: 'inherit' }}
                                     />
-                                    {activeTimer && activeTimer.projectId !== project.id && (
-                                        <span style={{ fontSize: 11, color: 'var(--warning)', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                                            Will stop current timer
-                                        </span>
-                                    )}
-                                    <button
-                                        onClick={() => startTimer({ projectId: project.id, projectName: project.name, taskName: timerDescription || undefined, mode: 'project' })}
-                                        style={{ width: 34, height: 34, borderRadius: '50%', background: '#6366f1', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(99,102,241,0.35)', flexShrink: 0 }}
-                                        title="Start timer"
-                                    >
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21" /></svg>
-                                    </button>
                                 </div>
-                            )}
+
+                                {/* Tag selector */}
+                                <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)' }}>
+                                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Tags</div>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                        {TIME_TAGS.map(tag => {
+                                            const active = selectedTags.includes(tag)
+                                            return (
+                                                <button key={tag} onClick={() => toggleTag(tag)} style={{
+                                                    padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                                                    background: active ? '#6366f1' : 'var(--surface)',
+                                                    color: active ? 'white' : 'var(--text-muted)',
+                                                    border: `1px solid ${active ? '#6366f1' : 'var(--border)'}`,
+                                                    transition: 'all 0.15s',
+                                                }}>
+                                                    {tag}
+                                                </button>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+
+                                {/* Start / Stop button */}
+                                <div style={{ padding: '10px 14px' }}>
+                                    {activeTimer?.projectId === project.id ? (
+                                        <button onClick={handleTimerStop} style={{
+                                            width: '100%', padding: '10px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                                            background: '#dc2626', color: 'white', fontSize: 13, fontWeight: 700, fontFamily: 'inherit',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                                            boxShadow: '0 2px 8px rgba(220,38,38,0.25)',
+                                        }}>
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="white"><rect x="4" y="4" width="16" height="16" rx="2" /></svg>
+                                            Stop &amp; Save
+                                        </button>
+                                    ) : (
+                                        <button onClick={() => startTimer({ projectId: project.id, projectName: project.name, taskName: timerDescription || undefined, mode: 'project' })} style={{
+                                            width: '100%', padding: '10px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                                            background: '#6366f1', color: 'white', fontSize: 13, fontWeight: 700, fontFamily: 'inherit',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                                            boxShadow: '0 2px 8px rgba(99,102,241,0.3)',
+                                        }}>
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21" /></svg>
+                                            Start Timer
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
 
                             {/* ── Stats ── */}
                             <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
@@ -761,34 +824,100 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                                 </div>
                             </div>
 
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            {/* ── Entry list ── */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                                 {timeEntries.length === 0 && (
                                     <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-dim)' }}>
-                                        <p>No time logged yet.</p>
+                                        <p>No time logged yet. Start a session above.</p>
                                     </div>
                                 )}
                                 {timeEntries.map(entry => {
                                     const task = tasks.find(t => t.id === entry.task_id)
+                                    const entryTags = entry.tags ?? []
+                                    const isEditingThis = editingEntryId === entry.id
+                                    const isEditingTagsThis = editingTagsEntryId === entry.id
                                     return (
                                         <div key={entry.id} style={{
-                                            padding: '12px 14px', background: 'var(--surface2)',
-                                            border: '1px solid var(--border)', borderRadius: 10,
-                                            display: 'flex', alignItems: 'center', gap: 12
+                                            background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden'
                                         }}>
-                                            <div style={{ flex: 1 }}>
-                                                <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>
-                                                    {new Date(entry.started_at).toLocaleDateString('en', { weekday: 'short', month: 'short', day: 'numeric' })}
-                                                    {' · '}
-                                                    {new Date(entry.started_at).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' })}
+                                            {/* Main row */}
+                                            <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                    <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 4 }}>
+                                                        {new Date(entry.started_at).toLocaleDateString('en', { weekday: 'short', month: 'short', day: 'numeric' })}
+                                                        {' · '}
+                                                        {new Date(entry.started_at).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' })}
+                                                        {task && <span style={{ marginLeft: 6, color: 'var(--accent-light)' }}>· {task.name}</span>}
+                                                    </div>
+
+                                                    {/* Editable description */}
+                                                    {isEditingThis ? (
+                                                        <input
+                                                            autoFocus
+                                                            value={editingNotes}
+                                                            onChange={e => setEditingNotes(e.target.value)}
+                                                            onBlur={() => saveEntryNotes(entry.id, editingNotes)}
+                                                            onKeyDown={e => {
+                                                                if (e.key === 'Enter') saveEntryNotes(entry.id, editingNotes)
+                                                                if (e.key === 'Escape') setEditingEntryId(null)
+                                                            }}
+                                                            style={{ width: '100%', border: 'none', outline: '1px solid var(--border)', borderRadius: 6, padding: '3px 7px', background: 'var(--surface)', fontSize: 14, color: 'var(--text)', fontFamily: 'inherit' }}
+                                                        />
+                                                    ) : (
+                                                        <div
+                                                            onClick={() => { setEditingEntryId(entry.id); setEditingNotes(entry.notes ?? '') }}
+                                                            title="Click to edit description"
+                                                            style={{ fontSize: 14, color: entry.notes ? 'var(--text)' : 'var(--text-dim)', fontStyle: entry.notes ? 'normal' : 'italic', cursor: 'text', fontWeight: entry.notes ? 600 : 400 }}
+                                                        >
+                                                            {entry.notes || 'Add description…'}
+                                                        </div>
+                                                    )}
                                                 </div>
-                                                <div style={{ fontSize: 14, color: 'var(--text)', marginTop: 2, fontWeight: 700 }}>
-                                                    {task ? task.name : 'General Project Time'}
+
+                                                <div style={{ fontFamily: 'monospace', fontSize: 15, fontWeight: 700, color: 'var(--text)', flexShrink: 0 }}>
+                                                    {entry.duration_seconds ? formatDuration(entry.duration_seconds) : '—'}
                                                 </div>
-                                                {entry.notes && <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 1, fontStyle: 'italic' }}>"{entry.notes}"</div>}
                                             </div>
-                                            <div style={{ fontFamily: 'monospace', fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>
-                                                {entry.duration_seconds ? formatDuration(entry.duration_seconds) : '—'}
+
+                                            {/* Tags row */}
+                                            <div style={{ padding: '8px 14px 10px', borderTop: '1px solid var(--border)', display: 'flex', flexWrap: 'wrap', gap: 5, alignItems: 'center' }}>
+                                                {entryTags.map(tag => (
+                                                    <span key={tag} style={{
+                                                        padding: '3px 9px', borderRadius: 20, fontSize: 11, fontWeight: 600,
+                                                        background: 'rgba(99,102,241,0.12)', color: 'var(--accent-light)',
+                                                        border: '1px solid rgba(99,102,241,0.2)'
+                                                    }}>{tag}</span>
+                                                ))}
+                                                <button
+                                                    onClick={() => setEditingTagsEntryId(isEditingTagsThis ? null : entry.id)}
+                                                    style={{
+                                                        padding: '3px 9px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                                                        background: 'transparent', color: 'var(--text-dim)', border: '1px dashed var(--border)',
+                                                    }}
+                                                >
+                                                    {isEditingTagsThis ? 'Done' : entryTags.length === 0 ? '+ Add tags' : '✎'}
+                                                </button>
                                             </div>
+
+                                            {/* Inline tag editor */}
+                                            {isEditingTagsThis && (
+                                                <div style={{ padding: '8px 14px 12px', borderTop: '1px solid var(--border)', display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                                                    {TIME_TAGS.map(tag => {
+                                                        const active = entryTags.includes(tag)
+                                                        return (
+                                                            <button key={tag} onClick={() => toggleEntryTag(entry.id, tag, entryTags)} style={{
+                                                                padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                                                                background: active ? '#6366f1' : 'var(--surface)',
+                                                                color: active ? 'white' : 'var(--text-muted)',
+                                                                border: `1px solid ${active ? '#6366f1' : 'var(--border)'}`,
+                                                                transition: 'all 0.15s',
+                                                            }}>
+                                                                {tag}
+                                                            </button>
+                                                        )
+                                                    })}
+                                                </div>
+                                            )}
                                         </div>
                                     )
                                 })}

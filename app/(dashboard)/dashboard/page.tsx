@@ -4,7 +4,7 @@ import HomePageClient from '@/components/home/HomePageClient'
 
 export const dynamic = 'force-dynamic'
 
-export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ project?: string }> }) {
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ project?: string; tab?: string }> }) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) redirect('/login')
@@ -32,6 +32,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             initialStages={(stages ?? []) as unknown as Parameters<typeof HomePageClient>[0]['initialStages']}
             initialClients={clients ?? []}
             openProjectId={resolvedParams.project}
+            openTab={resolvedParams.tab}
         />
     )
 }
