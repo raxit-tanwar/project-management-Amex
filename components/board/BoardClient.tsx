@@ -191,8 +191,10 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                 if (!workedToday) return false
             }
         }
-        if (searchText && !p.name.toLowerCase().includes(searchText.toLowerCase()) &&
-            !p.event_code?.toLowerCase().includes(searchText.toLowerCase())) return false
+        const q = searchText.toLowerCase()
+        if (searchText && !p.name.toLowerCase().includes(q) &&
+            !p.event_code?.toLowerCase().includes(q) &&
+            !p.stakeholder_name?.toLowerCase().includes(q)) return false
         return true
     })
 
