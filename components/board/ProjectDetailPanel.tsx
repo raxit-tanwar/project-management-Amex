@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatDuration, isOverdue } from '@/lib/utils'
 import { useTimer } from '@/context/TimerContext'
+import { setProjectArchived, updateProjectDetails } from '@/app/(dashboard)/actions'
 
 interface Stage { id: string; name: string; color: string }
 interface Task { id: string; name: string; description?: string; position: number }
@@ -109,7 +110,7 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
 
     async function saveEdit() {
         setLoading(true)
-        const { error } = await supabase.from('projects').update({
+        const { error } = await updateProjectDetails(project.id, {
             name:                 editForm.name || null,
             event_code:           editForm.event_code || null,
             stage_id:             editForm.stage_id || null,
@@ -126,7 +127,7 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
             stakeholder_name:     editForm.stakeholder_name || null,
             stakeholder_email:    editForm.stakeholder_email || null,
             client_id:            editForm.client_id || null,
-        }).eq('id', project.id)
+        })
         setLoading(false)
         if (!error) { setIsEditing(false); onUpdated() }
     }
@@ -246,10 +247,9 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
 
     const archiveProject = async () => {
         if (!confirm(`Archive "${project.name}"?\n\nThis will hide the project from the board. You can restore it any time from the Archived view.`)) return
-        const { error } = await supabase.from('projects').update({ archived: true }).eq('id', project.id)
+        const { error } = await setProjectArchived(project.id, true)
         if (error) {
-            alert(`Archive failed: ${error.message} (code: ${error.code})`)
-            console.error('Archive error:', error)
+            alert(`Archive failed: ${error}`)
             return
         }
         if (onArchived) onArchived()
@@ -257,10 +257,9 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
     }
 
     const restoreProject = async () => {
-        const { error } = await supabase.from('projects').update({ archived: false }).eq('id', project.id)
+        const { error } = await setProjectArchived(project.id, false)
         if (error) {
-            alert(`Restore failed: ${error.message} (code: ${error.code})`)
-            console.error('Restore error:', error)
+            alert(`Restore failed: ${error}`)
             return
         }
         onUpdated()

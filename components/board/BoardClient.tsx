@@ -7,6 +7,7 @@ import NewProjectModal from './NewProjectModal'
 import ProjectDetailPanel from './ProjectDetailPanel'
 import { isOverdue } from '@/lib/utils'
 import { useTimer } from '@/context/TimerContext'
+import { updateProjectStage, updateProjectDates } from '@/app/(dashboard)/actions'
 
 interface Stage { id: string; name: string; color: string; position: number }
 interface Project {
@@ -109,23 +110,20 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
     }
 
     const moveProjectStage = async (projectId: string, targetStageId: string) => {
-        // 1. Optimistic UI — card moves instantly
+        // Optimistic UI — card moves instantly
         setProjects(prev => prev.map(p =>
             p.id === projectId
                 ? { ...p, stage_id: targetStageId, stage: stages.find(s => s.id === targetStageId) }
                 : p
         ))
-        // 2. Persist to DB
-        await supabase.from('projects')
-            .update({ stage_id: targetStageId, stage_changed_at: new Date().toISOString() })
-            .eq('id', projectId)
+        // Persist via server action (avoids browser CORS on PATCH)
+        await updateProjectStage(projectId, targetStageId, new Date().toISOString())
     }
 
     const saveDateCaptureDates = async (projectId: string, dates: Record<string, string>) => {
         const toSave = Object.fromEntries(Object.entries(dates).filter(([, v]) => !!v))
         if (Object.keys(toSave).length > 0) {
-            await supabase.from('projects').update(toSave).eq('id', projectId)
-            // Update local state so ProjectDetailPanel shows fresh dates immediately
+            await updateProjectDates(projectId, toSave)
             setProjects(prev => prev.map(p =>
                 p.id === projectId ? { ...p, ...toSave } : p
             ))
