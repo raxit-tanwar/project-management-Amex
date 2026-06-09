@@ -51,8 +51,9 @@ const TABS: { id: TabId; label: string; icon: string }[] = [
 
 export default function ProjectDetailPanel({ project, userId, stages, clients, onClose, onUpdated }: ProjectDetailPanelProps) {
     const supabase = createClient()
-    const { startTimer, stopTimer, activeTimer } = useTimer()
+    const { startTimer, stopTimer, activeTimer, displayTime } = useTimer()
     const [tab, setTab] = useState<TabId>('overview')
+    const [timerDescription, setTimerDescription] = useState('')
     const [tasks, setTasks] = useState<Task[]>([])
     const [checklist, setChecklist] = useState<ChecklistItem[]>([])
     const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([])
@@ -145,6 +146,17 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
         }
         load()
     }, [project.id, supabase, userId])
+
+    const refreshTimeEntries = async () => {
+        const { data } = await supabase.from('time_entries').select('*').eq('project_id', project.id).order('started_at', { ascending: false })
+        if (data) setTimeEntries(data)
+    }
+
+    const handleTimerStop = async () => {
+        await stopTimer(timerDescription || undefined)
+        setTimerDescription('')
+        await refreshTimeEntries()
+    }
 
     // Tasks
     const addTask = async () => {
@@ -682,6 +694,62 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                     {/* TIME LOG */}
                     {tab === 'timelog' && (
                         <div>
+                            {/* ── Timer controls ── */}
+                            {activeTimer?.projectId === project.id ? (
+                                /* Running — show live indicator + stop */
+                                <div style={{
+                                    marginBottom: 20, padding: '16px 18px',
+                                    background: 'rgba(22,163,74,0.08)', border: '1px solid rgba(22,163,74,0.3)',
+                                    borderRadius: 12, display: 'flex', alignItems: 'center', gap: 14
+                                }}>
+                                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#16a34a', boxShadow: '0 0 0 3px rgba(22,163,74,0.25)', flexShrink: 0, animation: 'pulse 2s infinite' }} />
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ fontSize: 11, fontWeight: 700, color: '#16a34a', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>Recording</div>
+                                        <div style={{ fontSize: 13, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {activeTimer.taskName || 'General project time'}
+                                        </div>
+                                    </div>
+                                    <div style={{ fontSize: 24, fontWeight: 900, fontFamily: 'monospace', color: '#16a34a', letterSpacing: '0.04em', flexShrink: 0 }}>
+                                        {displayTime}
+                                    </div>
+                                    <button
+                                        onClick={handleTimerStop}
+                                        style={{ width: 36, height: 36, borderRadius: '50%', background: '#dc2626', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(220,38,38,0.3)', flexShrink: 0 }}
+                                        title="Stop timer"
+                                    >
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="white"><rect x="4" y="4" width="16" height="16" rx="2" /></svg>
+                                    </button>
+                                </div>
+                            ) : (
+                                /* Idle — show start controls */
+                                <div style={{
+                                    marginBottom: 20, padding: '14px 16px',
+                                    background: 'var(--surface2)', border: '1px solid var(--border)',
+                                    borderRadius: 12, display: 'flex', alignItems: 'center', gap: 10
+                                }}>
+                                    <input
+                                        value={timerDescription}
+                                        onChange={e => setTimerDescription(e.target.value)}
+                                        onKeyDown={e => e.key === 'Enter' && startTimer({ projectId: project.id, projectName: project.name, taskName: timerDescription || undefined, mode: 'project' })}
+                                        placeholder="What are you working on? (optional)"
+                                        style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontSize: 14, color: 'var(--text)', fontFamily: 'inherit' }}
+                                    />
+                                    {activeTimer && activeTimer.projectId !== project.id && (
+                                        <span style={{ fontSize: 11, color: 'var(--warning)', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                            Will stop current timer
+                                        </span>
+                                    )}
+                                    <button
+                                        onClick={() => startTimer({ projectId: project.id, projectName: project.name, taskName: timerDescription || undefined, mode: 'project' })}
+                                        style={{ width: 34, height: 34, borderRadius: '50%', background: '#6366f1', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(99,102,241,0.35)', flexShrink: 0 }}
+                                        title="Start timer"
+                                    >
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21" /></svg>
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* ── Stats ── */}
                             <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
                                 <div style={{ flex: 1, padding: '14px 16px', background: 'var(--surface2)', borderRadius: 10, border: '1px solid var(--border)', textAlign: 'center' }}>
                                     <div style={{ fontSize: 22, fontWeight: 800, fontFamily: 'monospace', color: 'var(--accent-light)' }}>{formatDuration(totalSeconds)}</div>

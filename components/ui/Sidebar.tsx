@@ -5,6 +5,8 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Home, BarChart2, Settings } from 'lucide-react'
 import { useState } from 'react'
+import { useTimer } from '@/context/TimerContext'
+import { formatDuration } from '@/lib/utils'
 
 interface SidebarProps {
     user: { email: string; name: string }
@@ -20,6 +22,7 @@ export default function Sidebar({ user }: SidebarProps) {
     const pathname = usePathname()
     const router = useRouter()
     const [signingOut, setSigningOut] = useState(false)
+    const { timer, displayTime } = useTimer()
 
     async function handleSignOut() {
         setSigningOut(true)
@@ -86,6 +89,38 @@ export default function Sidebar({ user }: SidebarProps) {
                     )
                 })}
             </nav>
+
+            {/* Global timer indicator */}
+            {timer.isRunning && timer.projectId && (
+                <button
+                    onClick={() => router.push(`/dashboard?project=${timer.projectId}`)}
+                    style={{
+                        width: '100%', marginBottom: 12,
+                        padding: '10px 12px', borderRadius: 10,
+                        background: 'rgba(22,163,74,0.08)', border: '1px solid rgba(22,163,74,0.25)',
+                        cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s'
+                    }}
+                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(22,163,74,0.14)'}
+                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'rgba(22,163,74,0.08)'}
+                    title="Click to open project"
+                >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 5 }}>
+                        <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#16a34a', boxShadow: '0 0 0 2px rgba(22,163,74,0.3)', flexShrink: 0 }} />
+                        <span style={{ fontSize: 10, fontWeight: 800, color: '#16a34a', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Recording</span>
+                    </div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 2 }}>
+                        {timer.projectName || 'Unknown project'}
+                    </div>
+                    {timer.taskName && (
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 4 }}>
+                            {timer.taskName}
+                        </div>
+                    )}
+                    <div style={{ fontSize: 16, fontWeight: 900, fontFamily: 'monospace', color: '#16a34a', letterSpacing: '0.04em' }}>
+                        {displayTime}
+                    </div>
+                </button>
+            )}
 
             {/* User section */}
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>

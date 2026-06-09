@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import ProjectCard from './ProjectCard'
 import NewProjectModal from './NewProjectModal'
@@ -16,7 +16,7 @@ interface Project {
     stage_id?: string; stage?: Stage
     tasks?: { id: string; status: string; name: string; estimated_minutes?: number }[]
     checklist_items?: { id: string; checked: boolean; text: string; position: number }[]
-    time_entries?: { duration_seconds: number }[]
+    time_entries?: { duration_seconds: number; started_at?: string }[]
     description?: string; notes?: string
 }
 
@@ -28,10 +28,11 @@ interface BoardClientProps {
     initialStages: Stage[]
     initialProjects: Project[]
     initialClients: Client[]
-    embedded?: boolean   // when true: strips own greeting/padding, fits inside a tab
+    embedded?: boolean
+    openProjectId?: string  // auto-open this project's detail panel on mount (from sidebar timer)
 }
 
-export default function BoardClient({ userId, userDisplayName, initialStages, initialProjects, initialClients, embedded }: BoardClientProps) {
+export default function BoardClient({ userId, userDisplayName, initialStages, initialProjects, initialClients, embedded, openProjectId }: BoardClientProps) {
     const supabase = createClient()
     const [stages] = useState(() => [...initialStages].sort((a, b) => a.position - b.position))
     const [projects, setProjects] = useState(initialProjects)
@@ -79,6 +80,13 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
     }, [supabase, userId])
 
     const refresh = useCallback(() => fetchProjects(showArchived), [fetchProjects, showArchived])
+
+    // Auto-open a specific project (e.g. when navigating from the sidebar timer indicator)
+    useEffect(() => {
+        if (!openProjectId) return
+        const p = projects.find(proj => proj.id === openProjectId)
+        if (p) setSelectedProject(p)
+    }, [openProjectId]) // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleDragStart = (e: React.DragEvent, projectId: string) => {
         setDraggedId(projectId)
@@ -147,17 +155,22 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
 
     const defaultStageId = (stages.find(s => s.name === 'Project Assigned') ?? stages[0])?.id
 
-    const todayStr = new Date().toISOString().split('T')[0]
-    const yesterday = new Date()
-    yesterday.setDate(yesterday.getDate() - 1)
-    const yesterdayStr = yesterday.toISOString().split('T')[0]
+    const localDateStr = (d: Date) =>
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    const todayStr = localDateStr(new Date())
+    const yDay = new Date(); yDay.setDate(yDay.getDate() - 1)
+    const yesterdayStr = localDateStr(yDay)
 
     const filteredProjects = projects.filter(p => {
         if (viewFilter === 'yesterday') {
-            const workedYesterday = (p.time_entries ?? []).some((e: any) => e.started_at?.startsWith(yesterdayStr))
+            const workedYesterday = (p.time_entries ?? []).some(e =>
+                e.started_at ? localDateStr(new Date(e.started_at)) === yesterdayStr : false
+            )
             if (!workedYesterday) return false
         } else if (viewFilter === 'today') {
-            const workedToday = (p.time_entries ?? []).some((e: any) => e.started_at?.startsWith(todayStr))
+            const workedToday = (p.time_entries ?? []).some(e =>
+                e.started_at ? localDateStr(new Date(e.started_at)) === todayStr : false
+            )
             if (!workedToday) return false
         }
         
@@ -257,11 +270,9 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                     ))}
                 </div>
 
-                {!embedded && (
-                    <button className="btn btn-primary btn-sm" onClick={() => setShowNewProject(true)}>
-                        + New Project
-                    </button>
-                )}
+                <button className="btn btn-primary btn-sm" onClick={() => setShowNewProject(true)}>
+                    + New Project
+                </button>
             </div>
 
             {/* Board */}
