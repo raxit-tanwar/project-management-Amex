@@ -38,35 +38,29 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
     const [clients, setClients] = useState(initialClients)
     const [showNewProject, setShowNewProject] = useState(false)
     const [selectedProject, setSelectedProject] = useState<Project | null>(null)
-
-    // Queue of date prompts — shown one by one when stages are skipped
-    const [dateQueue, setDateQueue] = useState<{
-        stageName: string; field: string; label: string
-    }[]>([])
-    const [pendingStageChange, setPendingStageChange] = useState<{
-        projectId: string; projectName: string; stageId: string
-        collectedDates: Record<string, string>
-    } | null>(null)
-    const [currentDateValue, setCurrentDateValue] = useState('')
-
-    // Map stage name keywords → date field. Matched case-insensitively.
-    const STAGE_DATE_RULES: { keywords: string[]; field: string; label: string }[] = [
-        { keywords: ['kick'],         field: 'kickoff_call_date',     label: 'Kick-off Call Date' },
-        { keywords: ['build', 'in'],  field: 'web_build_start_date',  label: 'Web Build Start Date' },
-        { keywords: ['draft'],        field: 'first_draft_sent_date', label: 'First Draft Sent Date' },
-        { keywords: ['live'],         field: 'build_live_date',       label: 'Build Live Date' },
-    ]
-
-    function getDateRuleForStage(stageName: string) {
-        const lower = stageName.toLowerCase()
-        return STAGE_DATE_RULES.find(r => r.keywords.every(kw => lower.includes(kw))) ?? null
-    }
     const [viewFilter, setViewFilter] = useState<string>('all')
     const [viewMode, setViewMode] = useState<'board' | 'list'>('board')
     const [draggedId, setDraggedId] = useState<string | null>(null)
     const [dragOverStage, setDragOverStage] = useState<string | null>(null)
     const [searchText, setSearchText] = useState('')
     const [showArchived, setShowArchived] = useState(false)
+
+    // Date capture modal — opened AFTER stage move completes, completely decoupled from drag
+    type DateStep = { stageName: string; field: string; label: string; value: string }
+    const [dateCapture, setDateCapture] = useState<{
+        projectId: string
+        projectName: string
+        steps: DateStep[]
+        currentStep: number
+    } | null>(null)
+
+    // Stage name → date field mapping (keyword-based, case-insensitive)
+    const STAGE_DATE_RULES = [
+        { match: (n: string) => n.toLowerCase().includes('kick'),                          field: 'kickoff_call_date',     label: 'Kick-off Call Date'      },
+        { match: (n: string) => n.toLowerCase().includes('build') && !n.toLowerCase().includes('assigned'), field: 'web_build_start_date',  label: 'Web Build Start Date'    },
+        { match: (n: string) => n.toLowerCase().includes('draft'),                         field: 'first_draft_sent_date', label: 'First Draft Sent Date'   },
+        { match: (n: string) => n.toLowerCase() === 'live' || n.toLowerCase().startsWith('live'), field: 'build_live_date',       label: 'Build Live Date'         },
+    ]
 
     const fetchProjects = useCallback(async (archived: boolean) => {
         const [{ data: projData }, { data: clientData }] = await Promise.all([
@@ -91,68 +85,59 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
         e.dataTransfer.effectAllowed = 'move'
     }
 
-    const commitStageChange = async (
-        projectId: string, stageId: string,
-        extraDates: Record<string, string> = {}
-    ) => {
-        // Optimistic UI update
+    const moveProjectStage = async (projectId: string, targetStageId: string) => {
+        // 1. Optimistic UI — card moves instantly
         setProjects(prev => prev.map(p =>
-            p.id === projectId ? { ...p, stage_id: stageId, stage: stages.find(s => s.id === stageId) } : p
+            p.id === projectId
+                ? { ...p, stage_id: targetStageId, stage: stages.find(s => s.id === targetStageId) }
+                : p
         ))
-        // Update stage
+        // 2. Persist to DB
         await supabase.from('projects')
-            .update({ stage_id: stageId, stage_changed_at: new Date().toISOString() })
+            .update({ stage_id: targetStageId, stage_changed_at: new Date().toISOString() })
             .eq('id', projectId)
-        // Update any captured dates
-        const datesToSave = Object.fromEntries(
-            Object.entries(extraDates).filter(([, v]) => !!v)
-        )
-        if (Object.keys(datesToSave).length > 0) {
-            await supabase.from('projects').update(datesToSave).eq('id', projectId)
+    }
+
+    const saveDateCaptureDates = async (projectId: string, dates: Record<string, string>) => {
+        const toSave = Object.fromEntries(Object.entries(dates).filter(([, v]) => !!v))
+        if (Object.keys(toSave).length > 0) {
+            await supabase.from('projects').update(toSave).eq('id', projectId)
         }
     }
 
-    const handleDrop = async (e: React.DragEvent, targetStageId: string) => {
+    const handleDrop = (e: React.DragEvent, targetStageId: string) => {
         e.preventDefault()
-        const droppedProjectId = draggedId   // capture before clearing
-        if (!droppedProjectId) return
-
+        const projectId = draggedId   // capture synchronously before any state changes
         setDraggedId(null)
         setDragOverStage(null)
+        if (!projectId) return
 
-        const project = projects.find(p => p.id === droppedProjectId)
-        if (!project) return
+        const project = projects.find(p => p.id === projectId)
+        if (!project || project.stage_id === targetStageId) return
 
-        // Find the position of the current and target stage
+        // 1. Move the stage immediately — no blocking
+        moveProjectStage(projectId, targetStageId)
+
+        // 2. Work out which stages were passed through (forward moves only, ascending position)
         const sortedStages = [...stages].sort((a, b) => a.position - b.position)
-        const fromIdx = sortedStages.findIndex(s => s.id === project.stage_id)
-        const toIdx   = sortedStages.findIndex(s => s.id === targetStageId)
+        const fromPos = sortedStages.find(s => s.id === project.stage_id)?.position ?? -1
+        const toPos   = sortedStages.find(s => s.id === targetStageId)?.position ?? 0
 
-        // Collect all stages between current and target (exclusive of current, inclusive of target)
-        // that have a date rule — handle both forward and backward moves
-        const start = Math.min(fromIdx, toIdx)
-        const end   = Math.max(fromIdx, toIdx)
-        const stagesInRange = sortedStages.slice(start, end + 1)
-            .filter(s => s.id !== project.stage_id)   // exclude origin
+        // Only prompt for forward moves — collect all traversed stages (including target)
+        const traversed = sortedStages.filter(s =>
+            s.position > fromPos && s.position <= toPos
+        )
 
-        const queue = stagesInRange
+        const steps: DateStep[] = traversed
             .map(s => {
-                const rule = getDateRuleForStage(s.name)
-                return rule ? { stageName: s.name, field: rule.field, label: rule.label } : null
+                const rule = STAGE_DATE_RULES.find(r => r.match(s.name))
+                return rule ? { stageName: s.name, field: rule.field, label: rule.label, value: new Date().toISOString().split('T')[0] } : null
             })
-            .filter(Boolean) as { stageName: string; field: string; label: string }[]
+            .filter((s): s is DateStep => s !== null)
 
-        if (queue.length > 0) {
-            setPendingStageChange({
-                projectId: droppedProjectId,
-                projectName: project.name,
-                stageId: targetStageId,
-                collectedDates: {},
-            })
-            setDateQueue(queue)
-            setCurrentDateValue(new Date().toISOString().split('T')[0])
-        } else {
-            await commitStageChange(droppedProjectId, targetStageId)
+        // 3. Open date capture modal if there are dates to collect
+        if (steps.length > 0) {
+            setDateCapture({ projectId, projectName: project.name, steps, currentStep: 0 })
         }
     }
 
@@ -458,62 +443,67 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                 />
             )}
 
-            {/* Sequential stage-date prompt modal */}
-            {pendingStageChange && dateQueue.length > 0 && (() => {
-                const current = dateQueue[0]
-                const remaining = dateQueue.length
-                const isLast = remaining === 1
-                const advance = async (saveDate: boolean) => {
-                    const collected = {
-                        ...pendingStageChange.collectedDates,
-                        ...(saveDate && currentDateValue ? { [current.field]: currentDateValue } : {}),
-                    }
+            {/* Date capture modal — fires AFTER stage move, driven purely by React state */}
+            {dateCapture && (() => {
+                const { projectId, projectName, steps, currentStep } = dateCapture
+                const step = steps[currentStep]
+                const total = steps.length
+                const isLast = currentStep === total - 1
+
+                const updateValue = (val: string) =>
+                    setDateCapture(d => d ? {
+                        ...d,
+                        steps: d.steps.map((s, i) => i === d.currentStep ? { ...s, value: val } : s)
+                    } : null)
+
+                const advance = async (save: boolean) => {
+                    const updatedSteps = steps.map((s, i) =>
+                        i === currentStep && !save ? { ...s, value: '' } : s
+                    )
                     if (isLast) {
-                        await commitStageChange(pendingStageChange.projectId, pendingStageChange.stageId, collected)
-                        setPendingStageChange(null)
-                        setDateQueue([])
+                        // Save all collected dates in one shot
+                        const dates: Record<string, string> = {}
+                        updatedSteps.forEach(s => { if (s.value) dates[s.field] = s.value })
+                        await saveDateCaptureDates(projectId, dates)
+                        setDateCapture(null)
                     } else {
-                        setPendingStageChange({ ...pendingStageChange, collectedDates: collected })
-                        setDateQueue(q => q.slice(1))
-                        setCurrentDateValue(new Date().toISOString().split('T')[0])
+                        setDateCapture({ ...dateCapture, steps: updatedSteps, currentStep: currentStep + 1 })
                     }
                 }
+
                 return (
                     <div style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-                        <div style={{ background: 'var(--surface)', borderRadius: 16, border: '1px solid var(--border)', boxShadow: '0 20px 60px rgba(0,0,0,0.25)', width: '100%', maxWidth: 440, padding: 28 }}>
-                            {/* Progress indicator */}
-                            {dateQueue.length < (dateQueue.length + Object.keys(pendingStageChange.collectedDates).length) || remaining > 1 ? (
-                                <div style={{ display: 'flex', gap: 4, marginBottom: 20 }}>
-                                    {Array.from({ length: remaining }).map((_, i) => (
-                                        <div key={i} style={{ height: 3, flex: 1, borderRadius: 2, background: i === 0 ? '#6366f1' : 'var(--border)' }} />
-                                    ))}
-                                </div>
-                            ) : null}
+                        <div style={{ background: 'var(--surface)', borderRadius: 16, border: '1px solid var(--border)', boxShadow: '0 24px 64px rgba(0,0,0,0.28)', width: '100%', maxWidth: 440, padding: 28 }}>
 
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-                                <span style={{ fontSize: 22 }}>📅</span>
-                                <div>
-                                    <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>{current.stageName}</h3>
-                                    <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
-                                        {remaining > 1 ? `${remaining} dates to confirm` : 'Last date to confirm'}
-                                    </p>
-                                </div>
+                            {/* Step progress bar */}
+                            <div style={{ display: 'flex', gap: 5, marginBottom: 22 }}>
+                                {steps.map((s, i) => (
+                                    <div key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: i <= currentStep ? '#6366f1' : 'var(--border)', transition: 'background 0.2s' }} />
+                                ))}
                             </div>
 
-                            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 18, lineHeight: 1.5 }}>
-                                Recording dates for <strong style={{ color: 'var(--text)' }}>{pendingStageChange.projectName}</strong> as it moves through stages.
+                            <div style={{ marginBottom: 4, fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                                Step {currentStep + 1} of {total}
+                            </div>
+                            <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>
+                                {step.stageName}
+                            </h3>
+                            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20, lineHeight: 1.5 }}>
+                                Log the date for <strong style={{ color: 'var(--text)' }}>{projectName}</strong> reaching this stage.
                             </p>
 
-                            <div style={{ marginBottom: 20 }}>
+                            <div style={{ marginBottom: 22 }}>
                                 <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>
-                                    {current.label} <span style={{ color: 'var(--text-dim)', fontWeight: 400 }}>(when did this happen?)</span>
+                                    {step.label}
                                 </label>
                                 <input
-                                    type="date" className="input"
-                                    value={currentDateValue}
-                                    onChange={e => setCurrentDateValue(e.target.value)}
+                                    key={currentStep}
+                                    type="date"
+                                    className="input"
+                                    value={step.value}
+                                    onChange={e => updateValue(e.target.value)}
+                                    onKeyDown={e => { if (e.key === 'Enter') advance(true) }}
                                     autoFocus
-                                    onKeyDown={e => e.key === 'Enter' && advance(true)}
                                 />
                             </div>
 
@@ -522,7 +512,7 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                                     Skip
                                 </button>
                                 <button className="btn btn-primary" style={{ flex: 2 }} onClick={() => advance(true)}>
-                                    {isLast ? 'Confirm & Move →' : 'Next →'}
+                                    {isLast ? '✓ Save & Done' : 'Next →'}
                                 </button>
                             </div>
                         </div>
