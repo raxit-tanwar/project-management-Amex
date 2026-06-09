@@ -16,7 +16,7 @@ interface Project {
     build_type?: string; build_addons?: string[]; project_type?: string; stakeholder_name?: string; stakeholder_email?: string
     due_date?: string; build_live_date?: string; start_date?: string; build_assigned_date?: string
     web_build_start_date?: string; first_draft_sent_date?: string; kickoff_call_date?: string
-    notes?: string; stage_id?: string
+    notes?: string; stage_id?: string; archived?: boolean
     stage?: { id: string; name: string; color: string }
 }
 
@@ -27,6 +27,7 @@ interface ProjectDetailPanelProps {
     clients: { id: string; name: string }[]
     onClose: () => void
     onUpdated: () => void
+    onArchived?: () => void
     initialTab?: TabId
 }
 
@@ -62,7 +63,7 @@ const TABS: { id: TabId; label: string; icon: string }[] = [
     { id: 'notes', label: 'Notes', icon: '📝' },
 ]
 
-export default function ProjectDetailPanel({ project, userId, stages, clients, onClose, onUpdated, initialTab }: ProjectDetailPanelProps) {
+export default function ProjectDetailPanel({ project, userId, stages, clients, onClose, onUpdated, onArchived, initialTab }: ProjectDetailPanelProps) {
     const supabase = createClient()
     const { startTimer, stopTimer, activeTimer, displayTime, timerNotes: ctxTimerNotes, timerTag: ctxTimerTag, setTimerNotes, setTimerTag } = useTimer()
     const isTimerForThisProject = activeTimer?.projectId === project.id
@@ -243,10 +244,25 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
         setLoading(false)
     }
 
-    // Archive project
     const archiveProject = async () => {
-        if (!confirm(`Archive "${project.name}"?\n\nArchived projects are hidden from the Pipeline Board. You can view them by enabling "Show Archived" on the board.`)) return
-        await supabase.from('projects').update({ archived: true }).eq('id', project.id)
+        if (!confirm(`Archive "${project.name}"?\n\nThis will hide the project from the board. You can restore it any time from the Archived view.`)) return
+        const { error } = await supabase.from('projects').update({ archived: true }).eq('id', project.id)
+        if (error) {
+            alert('Could not archive project. Please try again.')
+            console.error('Archive error:', error)
+            return
+        }
+        if (onArchived) onArchived()
+        else onUpdated()
+    }
+
+    const restoreProject = async () => {
+        const { error } = await supabase.from('projects').update({ archived: false }).eq('id', project.id)
+        if (error) {
+            alert('Could not restore project. Please try again.')
+            console.error('Restore error:', error)
+            return
+        }
         onUpdated()
     }
 
@@ -317,13 +333,25 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                                 )}
                             </div>
                         </div>
-                        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                            <button
-                                className="btn-icon"
-                                title="Archive project — hides it from the board"
-                                onClick={archiveProject}
-                                style={{ fontSize: 16 }}
-                            >📦</button>
+                        <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'center' }}>
+                            {project.archived ? (
+                                <button
+                                    onClick={restoreProject}
+                                    title="Restore to board"
+                                    style={{
+                                        padding: '5px 12px', borderRadius: 8, border: '1px solid rgba(99,102,241,0.35)',
+                                        background: 'rgba(99,102,241,0.08)', color: 'var(--accent-light)',
+                                        fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit'
+                                    }}
+                                >↩ Restore to Board</button>
+                            ) : (
+                                <button
+                                    className="btn-icon"
+                                    title="Archive project — hides it from the board"
+                                    onClick={archiveProject}
+                                    style={{ fontSize: 16 }}
+                                >📦</button>
+                            )}
                             <button className="btn-icon" onClick={onClose} aria-label="Close">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12" /></svg>
                             </button>

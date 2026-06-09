@@ -14,7 +14,7 @@ interface Project {
     build_type?: string; build_addons?: string[]; project_type?: string; stakeholder_name?: string; stakeholder_email?: string
     due_date?: string; build_live_date?: string; start_date?: string; build_assigned_date?: string
     web_build_start_date?: string; first_draft_sent_date?: string; kickoff_call_date?: string
-    stage_id?: string; stage?: Stage
+    stage_id?: string; stage?: Stage; archived?: boolean
     tasks?: { id: string; status: string; name: string; estimated_minutes?: number }[]
     checklist_items?: { id: string; checked: boolean; text: string; position: number }[]
     time_entries?: { duration_seconds: number; started_at?: string }[]
@@ -177,19 +177,22 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
     const yesterdayStr = localDateStr(yDay)
 
     const filteredProjects = projects.filter(p => {
-        if (viewFilter === 'yesterday') {
-            const workedYesterday = (p.time_entries ?? []).some(e =>
-                e.started_at ? localDateStr(new Date(e.started_at)) === yesterdayStr : false
-            )
-            if (!workedYesterday) return false
-        } else if (viewFilter === 'today') {
-            const workedToday = (p.time_entries ?? []).some(e =>
-                e.started_at ? localDateStr(new Date(e.started_at)) === todayStr : false
-            )
-            if (!workedToday) return false
+        // Time-based filters only apply to the active board, not archived view
+        if (!showArchived) {
+            if (viewFilter === 'yesterday') {
+                const workedYesterday = (p.time_entries ?? []).some(e =>
+                    e.started_at ? localDateStr(new Date(e.started_at)) === yesterdayStr : false
+                )
+                if (!workedYesterday) return false
+            } else if (viewFilter === 'today') {
+                const workedToday = (p.time_entries ?? []).some(e =>
+                    e.started_at ? localDateStr(new Date(e.started_at)) === todayStr : false
+                )
+                if (!workedToday) return false
+            }
         }
-        
-        if (searchText && !p.name.toLowerCase().includes(searchText.toLowerCase())) return false
+        if (searchText && !p.name.toLowerCase().includes(searchText.toLowerCase()) &&
+            !p.event_code?.toLowerCase().includes(searchText.toLowerCase())) return false
         return true
     })
 
@@ -232,26 +235,28 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                     <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim)', fontSize: 13 }}>🔍</span>
                 </div>
 
-                {/* Filter buttons — more visual than a dropdown */}
-                <div style={{ display: 'flex', gap: 4 }}>
-                    {([
-                        { value: 'all', label: 'All' },
-                        { value: 'yesterday', label: 'Yesterday' },
-                        { value: 'today', label: 'Today' },
-                    ] as const).map(f => (
-                        <button key={f.value} onClick={() => setViewFilter(f.value)}
-                            style={{
-                                padding: '5px 12px', borderRadius: 20, border: '1px solid',
-                                fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                                fontFamily: 'Inter, sans-serif', transition: 'all 0.15s',
-                                background: viewFilter === f.value ? '#6366f1' : 'transparent',
-                                color: viewFilter === f.value ? 'white' : 'var(--text-muted)',
-                                borderColor: viewFilter === f.value ? '#6366f1' : 'var(--border)',
-                            }}>
-                            {f.label}
-                        </button>
-                    ))}
-                </div>
+                {/* Time filters — only shown on active board, not in archived view */}
+                {!showArchived && (
+                    <div style={{ display: 'flex', gap: 4 }}>
+                        {([
+                            { value: 'all', label: 'All' },
+                            { value: 'yesterday', label: 'Yesterday' },
+                            { value: 'today', label: 'Today' },
+                        ] as const).map(f => (
+                            <button key={f.value} onClick={() => setViewFilter(f.value)}
+                                style={{
+                                    padding: '5px 12px', borderRadius: 20, border: '1px solid',
+                                    fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                                    fontFamily: 'Inter, sans-serif', transition: 'all 0.15s',
+                                    background: viewFilter === f.value ? '#6366f1' : 'transparent',
+                                    color: viewFilter === f.value ? 'white' : 'var(--text-muted)',
+                                    borderColor: viewFilter === f.value ? '#6366f1' : 'var(--border)',
+                                }}>
+                                {f.label}
+                            </button>
+                        ))}
+                    </div>
+                )}
 
                 {/* Archived toggle */}
                 <button
@@ -264,34 +269,92 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                         color: showArchived ? '#d97706' : 'var(--text-muted)',
                         borderColor: showArchived ? 'rgba(245,158,11,0.4)' : 'var(--border)',
                     }}
-                    title={showArchived ? 'Showing archived projects — click to show active' : 'Show archived projects'}
+                    title={showArchived ? 'Back to active board' : 'View archived projects'}
                 >
-                    📦 {showArchived ? 'Archived' : 'Archived'}
+                    📦 {showArchived ? '← Back to Board' : 'Archived'}
                 </button>
 
-                {/* Board / List toggle */}
-                <div style={{ display: 'flex', borderRadius: 8, border: '1px solid var(--border)', overflow: 'hidden', marginLeft: 'auto' }}>
-                    {(['board', 'list'] as const).map(mode => (
-                        <button key={mode} onClick={() => setViewMode(mode)}
-                            style={{
-                                padding: '6px 12px', fontSize: 12, fontWeight: 600,
-                                background: viewMode === mode ? 'var(--accent-dim)' : 'transparent',
-                                color: viewMode === mode ? '#6366f1' : 'var(--text-muted)',
-                                border: 'none', cursor: 'pointer', textTransform: 'capitalize', transition: 'all 0.15s',
-                                fontFamily: 'Inter, sans-serif'
-                            }}>
-                            {mode === 'board' ? '⊞' : '☰'} {mode}
-                        </button>
-                    ))}
-                </div>
+                {/* Board / List toggle — hidden in archived view */}
+                {!showArchived && (
+                    <div style={{ display: 'flex', borderRadius: 8, border: '1px solid var(--border)', overflow: 'hidden', marginLeft: 'auto' }}>
+                        {(['board', 'list'] as const).map(mode => (
+                            <button key={mode} onClick={() => setViewMode(mode)}
+                                style={{
+                                    padding: '6px 12px', fontSize: 12, fontWeight: 600,
+                                    background: viewMode === mode ? 'var(--accent-dim)' : 'transparent',
+                                    color: viewMode === mode ? '#6366f1' : 'var(--text-muted)',
+                                    border: 'none', cursor: 'pointer', textTransform: 'capitalize', transition: 'all 0.15s',
+                                    fontFamily: 'Inter, sans-serif'
+                                }}>
+                                {mode === 'board' ? '⊞' : '☰'} {mode}
+                            </button>
+                        ))}
+                    </div>
+                )}
 
                 <button className="btn btn-primary btn-sm" onClick={() => setShowNewProject(true)}>
                     + New Project
                 </button>
             </div>
 
-            {/* Board */}
-            {viewMode === 'board' ? (
+            {/* Archived view — flat list, no stage columns */}
+            {showArchived ? (
+                <div style={{ flex: 1, overflow: 'auto', padding: '20px 28px' }}>
+                    <div style={{ marginBottom: 16, fontSize: 13, color: 'var(--text-muted)', fontWeight: 500 }}>
+                        {filteredProjects.length} archived project{filteredProjects.length !== 1 ? 's' : ''}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {filteredProjects.length === 0 && (
+                            <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-dim)' }}>
+                                <div style={{ fontSize: 40, marginBottom: 12 }}>📦</div>
+                                <p style={{ fontWeight: 600, marginBottom: 4 }}>No archived projects</p>
+                                <p style={{ fontSize: 13 }}>Projects you archive will appear here.</p>
+                            </div>
+                        )}
+                        {filteredProjects.map(project => (
+                            <div
+                                key={project.id}
+                                onClick={() => { setSelectedProject(project); setAutoOpenTab(undefined) }}
+                                style={{
+                                    background: 'var(--surface2)', border: '1px solid var(--border)',
+                                    borderRadius: 12, padding: '14px 18px', cursor: 'pointer',
+                                    display: 'flex', alignItems: 'center', gap: 16,
+                                    transition: 'all 0.15s'
+                                }}
+                                onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--border2)'}
+                                onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'}
+                            >
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)' }}>
+                                        {project.name}
+                                    </div>
+                                    {project.event_code && (
+                                        <div style={{ fontSize: 11, color: 'var(--accent-light)', fontWeight: 700, marginTop: 2 }}>
+                                            {project.event_code}
+                                        </div>
+                                    )}
+                                    {project.client?.name && (
+                                        <span style={{
+                                            fontSize: 11, fontWeight: 600, padding: '1px 7px', borderRadius: 5,
+                                            background: `${project.client_color ?? '#6366f1'}18`,
+                                            color: project.client_color ?? '#6366f1', marginTop: 4, display: 'inline-block'
+                                        }}>{project.client.name}</span>
+                                    )}
+                                </div>
+                                {project.stage && (
+                                    <span style={{
+                                        fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 6,
+                                        background: `${project.stage.color}18`, color: project.stage.color, flexShrink: 0
+                                    }}>{project.stage.name}</span>
+                                )}
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0, fontFamily: 'monospace', fontWeight: 600 }}>
+                                    {formatHours(totalTime(project))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            ) : viewMode === 'board' ? (
                 <div style={{
                     flex: 1, overflow: 'auto',
                     display: 'flex', gap: 16, padding: '20px 24px', alignItems: 'flex-start'
@@ -469,6 +532,11 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                     onClose={() => { setSelectedProject(null); setAutoOpenTab(undefined) }}
                     onUpdated={async () => {
                         await refresh()
+                        setSelectedProject(null)
+                        setAutoOpenTab(undefined)
+                    }}
+                    onArchived={() => {
+                        setProjects(prev => prev.filter(p => p.id !== selectedProject.id))
                         setSelectedProject(null)
                         setAutoOpenTab(undefined)
                     }}
