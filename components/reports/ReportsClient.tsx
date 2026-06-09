@@ -70,7 +70,8 @@ export default function ReportsClient({ projects: allProjects, stages, timeEntri
     })
 
     const projects = allProjects
-    const doneStageId = stages.find(s => s.name === 'Done')?.id
+    const buildAssignedIds = new Set(stages.filter(s => s.name === 'Build Assigned').map(s => s.id))
+    const liveStageIds = new Set(stages.filter(s => s.name === 'Live').map(s => s.id))
     const totalProjects = projects.filter(p => !p.archived).length
 
     // Status data
@@ -216,8 +217,8 @@ export default function ReportsClient({ projects: allProjects, stages, timeEntri
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
                             {[
                                 { label: 'Total projects', value: totalProjects, color: 'var(--accent-light)' },
-                                { label: 'In Progress', value: projects.filter(p => p.stage_id === stages.find(s => s.name === 'In Progress')?.id).length, color: 'var(--accent-light)' },
-                                { label: 'Done', value: projects.filter(p => p.stage_id === doneStageId).length, color: 'var(--success)' },
+                                { label: 'In Progress', value: projects.filter(p => !p.archived && !buildAssignedIds.has(p.stage_id ?? '')).length, color: 'var(--accent-light)' },
+                                { label: 'Live', value: projects.filter(p => !p.archived && liveStageIds.has(p.stage_id ?? '')).length, color: 'var(--success)' },
                                 { label: 'Total time', value: formatDuration(totalSeconds), color: 'var(--warning)' },
                             ].map(stat => (
                                 <div key={stat.label} className="card" style={{ textAlign: 'center', padding: '20px' }}>
