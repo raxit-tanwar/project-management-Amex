@@ -248,7 +248,7 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
         if (!confirm(`Archive "${project.name}"?\n\nThis will hide the project from the board. You can restore it any time from the Archived view.`)) return
         const { error } = await supabase.from('projects').update({ archived: true }).eq('id', project.id)
         if (error) {
-            alert('Could not archive project. Please try again.')
+            alert(`Archive failed: ${error.message} (code: ${error.code})`)
             console.error('Archive error:', error)
             return
         }
@@ -259,7 +259,7 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
     const restoreProject = async () => {
         const { error } = await supabase.from('projects').update({ archived: false }).eq('id', project.id)
         if (error) {
-            alert('Could not restore project. Please try again.')
+            alert(`Restore failed: ${error.message} (code: ${error.code})`)
             console.error('Restore error:', error)
             return
         }
