@@ -38,19 +38,28 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
     const [clients, setClients] = useState(initialClients)
     const [showNewProject, setShowNewProject] = useState(false)
     const [selectedProject, setSelectedProject] = useState<Project | null>(null)
-    const [stageDatePrompt, setStageDatePrompt] = useState<{
-        projectId: string; projectName: string
-        stageId: string; stageName: string
-        field: string; label: string
-    } | null>(null)
-    const [stageDateValue, setStageDateValue] = useState('')
 
-    // Which stages require a date capture on drop
-    const STAGE_DATE_MAP: Record<string, { field: string; label: string }> = {
-        'Kick-off Call':      { field: 'kickoff_call_date',     label: 'Kick-off Call Date' },
-        'In Build':           { field: 'web_build_start_date',  label: 'Web Build Start Date' },
-        'First Draft Sent':   { field: 'first_draft_sent_date', label: 'First Draft Sent Date' },
-        'Live':               { field: 'build_live_date',       label: 'Build Live Date' },
+    // Queue of date prompts — shown one by one when stages are skipped
+    const [dateQueue, setDateQueue] = useState<{
+        stageName: string; field: string; label: string
+    }[]>([])
+    const [pendingStageChange, setPendingStageChange] = useState<{
+        projectId: string; projectName: string; stageId: string
+        collectedDates: Record<string, string>
+    } | null>(null)
+    const [currentDateValue, setCurrentDateValue] = useState('')
+
+    // Map stage name keywords → date field. Matched case-insensitively.
+    const STAGE_DATE_RULES: { keywords: string[]; field: string; label: string }[] = [
+        { keywords: ['kick'],         field: 'kickoff_call_date',     label: 'Kick-off Call Date' },
+        { keywords: ['build', 'in'],  field: 'web_build_start_date',  label: 'Web Build Start Date' },
+        { keywords: ['draft'],        field: 'first_draft_sent_date', label: 'First Draft Sent Date' },
+        { keywords: ['live'],         field: 'build_live_date',       label: 'Build Live Date' },
+    ]
+
+    function getDateRuleForStage(stageName: string) {
+        const lower = stageName.toLowerCase()
+        return STAGE_DATE_RULES.find(r => r.keywords.every(kw => lower.includes(kw))) ?? null
     }
     const [viewFilter, setViewFilter] = useState<string>('all')
     const [viewMode, setViewMode] = useState<'board' | 'list'>('board')
@@ -82,39 +91,68 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
         e.dataTransfer.effectAllowed = 'move'
     }
 
-    const commitStageChange = async (projectId: string, stageId: string, extraField?: { field: string; value: string }) => {
+    const commitStageChange = async (
+        projectId: string, stageId: string,
+        extraDates: Record<string, string> = {}
+    ) => {
+        // Optimistic UI update
         setProjects(prev => prev.map(p =>
             p.id === projectId ? { ...p, stage_id: stageId, stage: stages.find(s => s.id === stageId) } : p
         ))
-        await supabase.rpc('update_project_stage', {
-            p_id: projectId,
-            p_stage_id: stageId,
-            p_stage_changed_at: new Date().toISOString(),
-        })
-        if (extraField?.value) {
-            await supabase.from('projects').update({ [extraField.field]: extraField.value }).eq('id', projectId)
+        // Update stage
+        await supabase.from('projects')
+            .update({ stage_id: stageId, stage_changed_at: new Date().toISOString() })
+            .eq('id', projectId)
+        // Update any captured dates
+        const datesToSave = Object.fromEntries(
+            Object.entries(extraDates).filter(([, v]) => !!v)
+        )
+        if (Object.keys(datesToSave).length > 0) {
+            await supabase.from('projects').update(datesToSave).eq('id', projectId)
         }
     }
 
-    const handleDrop = async (e: React.DragEvent, stageId: string) => {
+    const handleDrop = async (e: React.DragEvent, targetStageId: string) => {
         e.preventDefault()
-        if (!draggedId || draggedId === stageId) return
-        const targetStage = stages.find(s => s.id === stageId)
-        const dateRequirement = targetStage ? STAGE_DATE_MAP[targetStage.name] : null
-        const project = projects.find(p => p.id === draggedId)
+        const droppedProjectId = draggedId   // capture before clearing
+        if (!droppedProjectId) return
 
         setDraggedId(null)
         setDragOverStage(null)
 
-        if (dateRequirement && project) {
-            setStageDateValue(new Date().toISOString().split('T')[0])
-            setStageDatePrompt({
-                projectId: project.id, projectName: project.name,
-                stageId, stageName: targetStage!.name,
-                field: dateRequirement.field, label: dateRequirement.label,
+        const project = projects.find(p => p.id === droppedProjectId)
+        if (!project) return
+
+        // Find the position of the current and target stage
+        const sortedStages = [...stages].sort((a, b) => a.position - b.position)
+        const fromIdx = sortedStages.findIndex(s => s.id === project.stage_id)
+        const toIdx   = sortedStages.findIndex(s => s.id === targetStageId)
+
+        // Collect all stages between current and target (exclusive of current, inclusive of target)
+        // that have a date rule — handle both forward and backward moves
+        const start = Math.min(fromIdx, toIdx)
+        const end   = Math.max(fromIdx, toIdx)
+        const stagesInRange = sortedStages.slice(start, end + 1)
+            .filter(s => s.id !== project.stage_id)   // exclude origin
+
+        const queue = stagesInRange
+            .map(s => {
+                const rule = getDateRuleForStage(s.name)
+                return rule ? { stageName: s.name, field: rule.field, label: rule.label } : null
             })
+            .filter(Boolean) as { stageName: string; field: string; label: string }[]
+
+        if (queue.length > 0) {
+            setPendingStageChange({
+                projectId: droppedProjectId,
+                projectName: project.name,
+                stageId: targetStageId,
+                collectedDates: {},
+            })
+            setDateQueue(queue)
+            setCurrentDateValue(new Date().toISOString().split('T')[0])
         } else {
-            await commitStageChange(draggedId, stageId)
+            await commitStageChange(droppedProjectId, targetStageId)
         }
     }
 
@@ -420,48 +458,77 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                 />
             )}
 
-            {/* Stage-drop date prompt modal */}
-            {stageDatePrompt && (
-                <div style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-                    <div style={{ background: 'var(--surface)', borderRadius: 16, border: '1px solid var(--border)', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', width: '100%', maxWidth: 420, padding: 28 }}>
-                        <div style={{ marginBottom: 20 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                                <span style={{ fontSize: 20 }}>📅</span>
-                                <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>Moving to {stageDatePrompt.stageName}</h3>
+            {/* Sequential stage-date prompt modal */}
+            {pendingStageChange && dateQueue.length > 0 && (() => {
+                const current = dateQueue[0]
+                const remaining = dateQueue.length
+                const isLast = remaining === 1
+                const advance = async (saveDate: boolean) => {
+                    const collected = {
+                        ...pendingStageChange.collectedDates,
+                        ...(saveDate && currentDateValue ? { [current.field]: currentDateValue } : {}),
+                    }
+                    if (isLast) {
+                        await commitStageChange(pendingStageChange.projectId, pendingStageChange.stageId, collected)
+                        setPendingStageChange(null)
+                        setDateQueue([])
+                    } else {
+                        setPendingStageChange({ ...pendingStageChange, collectedDates: collected })
+                        setDateQueue(q => q.slice(1))
+                        setCurrentDateValue(new Date().toISOString().split('T')[0])
+                    }
+                }
+                return (
+                    <div style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+                        <div style={{ background: 'var(--surface)', borderRadius: 16, border: '1px solid var(--border)', boxShadow: '0 20px 60px rgba(0,0,0,0.25)', width: '100%', maxWidth: 440, padding: 28 }}>
+                            {/* Progress indicator */}
+                            {dateQueue.length < (dateQueue.length + Object.keys(pendingStageChange.collectedDates).length) || remaining > 1 ? (
+                                <div style={{ display: 'flex', gap: 4, marginBottom: 20 }}>
+                                    {Array.from({ length: remaining }).map((_, i) => (
+                                        <div key={i} style={{ height: 3, flex: 1, borderRadius: 2, background: i === 0 ? '#6366f1' : 'var(--border)' }} />
+                                    ))}
+                                </div>
+                            ) : null}
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                                <span style={{ fontSize: 22 }}>📅</span>
+                                <div>
+                                    <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>{current.stageName}</h3>
+                                    <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
+                                        {remaining > 1 ? `${remaining} dates to confirm` : 'Last date to confirm'}
+                                    </p>
+                                </div>
                             </div>
-                            <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
-                                <strong style={{ color: 'var(--text)' }}>{stageDatePrompt.projectName}</strong> is being moved to <strong style={{ color: 'var(--text)' }}>{stageDatePrompt.stageName}</strong>.
-                                Please confirm the <strong>{stageDatePrompt.label}</strong>.
+
+                            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 18, lineHeight: 1.5 }}>
+                                Recording dates for <strong style={{ color: 'var(--text)' }}>{pendingStageChange.projectName}</strong> as it moves through stages.
                             </p>
-                        </div>
-                        <div style={{ marginBottom: 20 }}>
-                            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>{stageDatePrompt.label}</label>
-                            <input
-                                type="date" className="input"
-                                value={stageDateValue}
-                                onChange={e => setStageDateValue(e.target.value)}
-                                autoFocus
-                            />
-                        </div>
-                        <div style={{ display: 'flex', gap: 10 }}>
-                            <button className="btn btn-ghost" style={{ flex: 1 }}
-                                onClick={async () => {
-                                    await commitStageChange(stageDatePrompt.projectId, stageDatePrompt.stageId)
-                                    setStageDatePrompt(null)
-                                }}>
-                                Skip date
-                            </button>
-                            <button className="btn btn-primary" style={{ flex: 2 }}
-                                onClick={async () => {
-                                    await commitStageChange(stageDatePrompt.projectId, stageDatePrompt.stageId, { field: stageDatePrompt.field, value: stageDateValue })
-                                    setStageDatePrompt(null)
-                                }}>
-                                Confirm &amp; Move
-                            </button>
+
+                            <div style={{ marginBottom: 20 }}>
+                                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>
+                                    {current.label} <span style={{ color: 'var(--text-dim)', fontWeight: 400 }}>(when did this happen?)</span>
+                                </label>
+                                <input
+                                    type="date" className="input"
+                                    value={currentDateValue}
+                                    onChange={e => setCurrentDateValue(e.target.value)}
+                                    autoFocus
+                                    onKeyDown={e => e.key === 'Enter' && advance(true)}
+                                />
+                            </div>
+
+                            <div style={{ display: 'flex', gap: 10 }}>
+                                <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => advance(false)}>
+                                    Skip
+                                </button>
+                                <button className="btn btn-primary" style={{ flex: 2 }} onClick={() => advance(true)}>
+                                    {isLast ? 'Confirm & Move →' : 'Next →'}
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            })()}
         </div>
     )
 }
