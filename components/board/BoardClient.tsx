@@ -389,7 +389,7 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
             ) : viewMode === 'board' ? (
                 <div style={{
                     flex: 1, overflow: 'auto',
-                    display: 'flex', gap: 16, padding: '20px 24px', alignItems: 'flex-start'
+                    display: 'flex', gap: 16, padding: '20px 24px', alignItems: 'stretch'
                 }}>
                     {stages.map(stage => {
                         const stageProjects = filteredProjects.filter(p =>
@@ -398,7 +398,7 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                         return (
                             <div
                                 key={stage.id}
-                                style={{ minWidth: 280, flex: '0 0 280px' }}
+                                style={{ minWidth: 280, flex: '0 0 280px', display: 'flex', flexDirection: 'column' }}
                                 onDragOver={e => { e.preventDefault(); setDragOverStage(stage.id) }}
                                 onDragLeave={() => setDragOverStage(null)}
                                 onDrop={e => handleDrop(e, stage.id)}
@@ -418,9 +418,9 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                                     }}>{stageProjects.length}</span>
                                 </div>
 
-                                {/* Drop zone */}
+                                {/* Drop zone — fills the rest of the column so the whole column area is droppable */}
                                 <div style={{
-                                    minHeight: 80, borderRadius: 14,
+                                    flex: 1, minHeight: 80, borderRadius: 14,
                                     border: `2px dashed ${dragOverStage === stage.id ? stage.color : 'transparent'}`,
                                     background: dragOverStage === stage.id ? `${stage.color}08` : 'transparent',
                                     transition: 'all 0.2s ease',
