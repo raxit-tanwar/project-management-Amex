@@ -17,3 +17,12 @@ export function isOverdue(dueDate?: string | null): boolean {
     if (!dueDate) return false
     return new Date(dueDate) < new Date()
 }
+
+export function daysRemaining(dueDate?: string | null): number | null {
+    if (!dueDate) return null
+    const due = new Date(dueDate)
+    due.setHours(0, 0, 0, 0)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    return Math.round((due.getTime() - today.getTime()) / 86400000)
+}

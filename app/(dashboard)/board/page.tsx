@@ -4,10 +4,12 @@ import BoardClient from '@/components/board/BoardClient'
 
 export const dynamic = 'force-dynamic'
 
-export default async function BoardPage() {
+export default async function BoardPage({ searchParams }: { searchParams: Promise<{ project?: string; tab?: string }> }) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) redirect('/login')
+
+    const { project, tab } = await searchParams
 
     const [{ data: profile }, { data: stages }, { data: projects }, { data: clients }] = await Promise.all([
         supabase.from('profiles').select('display_name').eq('id', user.id).single(),
@@ -29,6 +31,8 @@ export default async function BoardPage() {
             initialStages={stages ?? []}
             initialProjects={projects ?? []}
             initialClients={clients ?? []}
+            openProjectId={project}
+            openTab={tab}
         />
     )
 }

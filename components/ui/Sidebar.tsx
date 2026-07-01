@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Home, BarChart2, Settings } from 'lucide-react'
+import { Home, Kanban, BarChart2, Settings } from 'lucide-react'
 import { useState } from 'react'
 import { useTimer } from '@/context/TimerContext'
 import { formatDuration } from '@/lib/utils'
@@ -13,7 +13,8 @@ interface SidebarProps {
 }
 
 const navItems = [
-    { href: '/dashboard', label: 'Homepage', icon: Home },
+    { href: '/dashboard', label: 'Overview', icon: Home },
+    { href: '/board', label: 'Board', icon: Kanban },
     { href: '/reports', label: 'Reports', icon: BarChart2 },
     { href: '/settings', label: 'Settings', icon: Settings },
 ]
@@ -95,7 +96,7 @@ export default function Sidebar({ user }: SidebarProps) {
                 <button
                     onClick={() => {
                         setPendingOpen({ projectId: timer.projectId!, tab: 'timelog' })
-                        router.push('/dashboard')
+                        router.push('/board')
                     }}
                     style={{
                         width: '100%', marginBottom: 12,
