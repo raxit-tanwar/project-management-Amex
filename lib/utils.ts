@@ -18,6 +18,24 @@ export function isOverdue(dueDate?: string | null): boolean {
     return new Date(dueDate) < new Date()
 }
 
+// Stage names that mean the project has shipped / is finished. A project sitting
+// in one of these stages has *met* its build-live date, so that date must never
+// render as "overdue" — being past it just means the project went live.
+const COMPLETED_STAGE_NAMES = new Set(['live', 'done', 'complete', 'completed', 'delivered'])
+
+export function isCompletedStage(stageName?: string | null): boolean {
+    if (!stageName) return false
+    return COMPLETED_STAGE_NAMES.has(stageName.trim().toLowerCase())
+}
+
+// Overdue check for a *project's* build-live/due date. Unlike isOverdue(), this is
+// stage-aware: once the project reaches a completed stage (Live/Done) it has shipped,
+// so the date is considered met and is never flagged overdue.
+export function isProjectOverdue(dueDate?: string | null, stageName?: string | null): boolean {
+    if (isCompletedStage(stageName)) return false
+    return isOverdue(dueDate)
+}
+
 // Datetime-aware overdue check for action items.
 // - If the due value carries a meaningful time-of-day, compare the timestamp directly.
 // - If it's date-only, it's only overdue once that whole calendar day has passed

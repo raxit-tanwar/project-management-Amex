@@ -1,6 +1,6 @@
 'use client'
 
-import { isOverdue, isTaskOverdue } from '@/lib/utils'
+import { isProjectOverdue, isTaskOverdue } from '@/lib/utils'
 import { User, Clock, AlertTriangle, CheckCircle2 } from 'lucide-react'
 
 interface ProjectCardProps {
@@ -37,7 +37,7 @@ export default function ProjectCard({ project, totalSeconds, formatHours, onClic
     const tasksDone = tasks.filter(t => t.status === 'Done').length
     const tasksInProgress = tasks.filter(t => t.status === 'In Progress').length
     const overdueTasks = tasks.filter(t => t.status !== 'Done' && isTaskOverdue(t.due_at, t.due_has_time)).length
-    const overdue = isOverdue(project.due_date)
+    const overdue = isProjectOverdue(project.due_date, project.stage?.name)
     const stageColor = project.stage?.color ?? '#4f46e5'
 
     const checklistPercent = checklist.length > 0 ? (checklistDone / checklist.length) * 100 : 0

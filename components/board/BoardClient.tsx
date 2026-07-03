@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import ProjectCard from './ProjectCard'
 import NewProjectModal from './NewProjectModal'
 import ProjectDetailPanel from './ProjectDetailPanel'
-import { isOverdue } from '@/lib/utils'
+import { isProjectOverdue } from '@/lib/utils'
 import { useTimer } from '@/context/TimerContext'
 import { updateProjectStage, updateProjectDates } from '@/app/(dashboard)/actions'
 import { Search, Archive, LayoutGrid, List, Plus, ClipboardList, ArrowLeft } from 'lucide-react'
@@ -532,7 +532,7 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                         {listProjects.map(project => {
                             const checklist = project.checklist_items ?? []
                             const done = checklist.filter(c => c.checked).length
-                            const overdue = isOverdue(project.due_date)
+                            const overdue = isProjectOverdue(project.due_date, project.stage?.name)
                             const stageColor = project.stage?.color ?? '#4f46e5'
                             return (
                                 <div
