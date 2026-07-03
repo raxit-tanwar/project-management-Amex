@@ -1,6 +1,6 @@
 'use client'
 
-import { isOverdue } from '@/lib/utils'
+import { isOverdue, isTaskOverdue } from '@/lib/utils'
 
 interface ProjectCardProps {
     project: {
@@ -19,7 +19,7 @@ interface ProjectCardProps {
         // stage
         stage?: { name: string; color: string }
         // relations
-        tasks?: { id: string; status: string }[]
+        tasks?: { id: string; status: string; due_at?: string | null; due_has_time?: boolean }[]
         checklist_items?: { id: string; checked: boolean }[]
         time_entries?: { duration_seconds: number }[]
     }
@@ -35,6 +35,7 @@ export default function ProjectCard({ project, totalSeconds, formatHours, onClic
     const tasks = project.tasks ?? []
     const tasksDone = tasks.filter(t => t.status === 'Done').length
     const tasksInProgress = tasks.filter(t => t.status === 'In Progress').length
+    const overdueTasks = tasks.filter(t => t.status !== 'Done' && isTaskOverdue(t.due_at, t.due_has_time)).length
     const overdue = isOverdue(project.due_date)
     const stageColor = project.stage?.color ?? '#6366f1'
 
@@ -70,6 +71,18 @@ export default function ProjectCard({ project, totalSeconds, formatHours, onClic
                 el.style.borderLeftColor = stageColor
             }}
         >
+            {/* Overdue-task indicator — red dot in the top-right corner for quick scanning */}
+            {overdueTasks > 0 && (
+                <span
+                    title={`${overdueTasks} overdue task${overdueTasks !== 1 ? 's' : ''}`}
+                    style={{
+                        position: 'absolute', top: 10, right: 10,
+                        width: 9, height: 9, borderRadius: '50%', background: '#dc2626',
+                        boxShadow: '0 0 0 3px rgba(220,38,38,0.18)',
+                    }}
+                />
+            )}
+
             {/* Event code chip */}
             {project.event_code && (
                 <div style={{ marginBottom: 8 }}>
@@ -147,6 +160,20 @@ export default function ProjectCard({ project, totalSeconds, formatHours, onClic
                         {tasksInProgress > 0 && (
                             <span style={{ fontSize: 10, color: '#d97706', fontWeight: 600 }}>· {tasksInProgress} active</span>
                         )}
+                    </div>
+                )}
+
+                {/* Overdue tasks badge */}
+                {overdueTasks > 0 && (
+                    <div style={{
+                        display: 'flex', alignItems: 'center', gap: 4,
+                        padding: '3px 8px', borderRadius: 20,
+                        background: 'rgba(220,38,38,0.08)',
+                        border: '1px solid rgba(220,38,38,0.25)',
+                    }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#dc2626' }}>
+                            ⚠ {overdueTasks} overdue
+                        </span>
                     </div>
                 )}
 

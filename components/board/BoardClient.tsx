@@ -16,7 +16,7 @@ interface Project {
     due_date?: string; build_live_date?: string; start_date?: string; build_assigned_date?: string
     web_build_start_date?: string; first_draft_sent_date?: string; kickoff_call_date?: string
     stage_id?: string; stage?: Stage; archived?: boolean
-    tasks?: { id: string; status: string; name: string; estimated_minutes?: number }[]
+    tasks?: { id: string; status: string; name: string; estimated_minutes?: number; due_at?: string | null; due_has_time?: boolean }[]
     checklist_items?: { id: string; checked: boolean; text: string; position: number }[]
     time_entries?: { duration_seconds: number; started_at?: string }[]
     description?: string; notes?: string
@@ -78,7 +78,7 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                 *,
                 stage:stages(id, name, color),
                 client:clients(name),
-                tasks(id, status, name, estimated_minutes),
+                tasks(id, status, name, estimated_minutes, due_at, due_has_time),
                 checklist_items(id, checked, text, position),
                 time_entries(duration_seconds, started_at)
             `).eq('user_id', userId).eq('archived', archived).order('created_at', { ascending: false }),

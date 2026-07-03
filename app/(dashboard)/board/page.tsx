@@ -17,7 +17,7 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
         supabase.from('projects').select(`
       *,
       stage:stages(id, name, color),
-      tasks(id, status, name, estimated_minutes),
+      tasks(id, status, name, estimated_minutes, due_at, due_has_time),
       checklist_items(id, checked, text, position),
       time_entries(duration_seconds, started_at)
     `).eq('user_id', user.id).eq('archived', false).order('created_at', { ascending: false }),
