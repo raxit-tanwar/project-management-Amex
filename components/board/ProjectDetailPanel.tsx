@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { formatDuration, isOverdue, isTaskOverdue } from '@/lib/utils'
+import { formatDuration, isProjectOverdue, isTaskOverdue } from '@/lib/utils'
 import { useTimer } from '@/context/TimerContext'
 import { setProjectArchived, updateProjectDetails } from '@/app/(dashboard)/actions'
 import {
@@ -400,12 +400,15 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--text-dim)' }}>
                             <CheckSquare size={12} /> <strong style={{ color: 'var(--text-muted)', fontWeight: 600 }}>{tasks.filter(t => t.status !== 'Done').length}</strong> open
                         </span>
-                        {project.due_date && (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: isOverdue(project.due_date) ? 'var(--danger)' : 'var(--text-dim)', fontWeight: isOverdue(project.due_date) ? 600 : 400 }}>
-                                <CalendarDays size={12} /> {new Date(project.due_date).toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' })}
-                                {isOverdue(project.due_date) && ' · overdue'}
-                            </span>
-                        )}
+                        {project.due_date && (() => {
+                            const dueOverdue = isProjectOverdue(project.due_date, project.stage?.name)
+                            return (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: dueOverdue ? 'var(--danger)' : 'var(--text-dim)', fontWeight: dueOverdue ? 600 : 400 }}>
+                                    <CalendarDays size={12} /> {new Date(project.due_date).toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                    {dueOverdue && ' · overdue'}
+                                </span>
+                            )
+                        })()}
                     </div>
                 </div>
 
@@ -592,8 +595,8 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                                         { l: 'First Draft Sent Date', v: project.first_draft_sent_date ? new Date(project.first_draft_sent_date).toLocaleDateString() : '—' },
                                         {
                                             l: 'Build Live Date', v: (project.due_date || project.build_live_date) ? (
-                                                <span style={{ color: isOverdue(project.due_date) ? 'var(--danger)' : 'var(--text)' }}>
-                                                    {new Date(project.due_date ?? project.build_live_date!).toLocaleDateString()}{isOverdue(project.due_date) ? ' · overdue' : ''}
+                                                <span style={{ color: isProjectOverdue(project.due_date, project.stage?.name) ? 'var(--danger)' : 'var(--text)' }}>
+                                                    {new Date(project.due_date ?? project.build_live_date!).toLocaleDateString()}{isProjectOverdue(project.due_date, project.stage?.name) ? ' · overdue' : ''}
                                                 </span>
                                             ) : '—'
                                         },
