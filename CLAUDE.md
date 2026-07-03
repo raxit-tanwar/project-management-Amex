@@ -127,6 +127,7 @@ All tables use RLS. Every user-owned table has a `user_id uuid → auth.users.id
 | event_code | text | nullable |
 
 #### `tasks`
+Repurposed as per-project **action items** (to-dos with a status + optional due date). No timer.
 | Column | Type | Notes |
 |---|---|---|
 | id | uuid PK | |
@@ -134,10 +135,12 @@ All tables use RLS. Every user-owned table has a `user_id uuid → auth.users.id
 | user_id | uuid | → auth.users |
 | name | text | |
 | description | text | nullable |
-| estimated_minutes | int | nullable |
+| estimated_minutes | int | nullable (legacy) |
 | status | text | check: To Do/In Progress/Done |
 | assignee | text | nullable |
 | position | int | default 0 |
+| due_at | timestamptz | nullable — optional due date/time; null = no date |
+| due_has_time | bool | default false — true when due_at carries a time-of-day (else date-only) |
 
 #### `checklist_items`
 | Column | Type | Notes |

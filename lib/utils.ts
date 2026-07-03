@@ -18,6 +18,20 @@ export function isOverdue(dueDate?: string | null): boolean {
     return new Date(dueDate) < new Date()
 }
 
+// Datetime-aware overdue check for action items.
+// - If the due value carries a meaningful time-of-day, compare the timestamp directly.
+// - If it's date-only, it's only overdue once that whole calendar day has passed
+//   (i.e. from the start of the next day), so a task "due today" isn't flagged at 00:00.
+export function isTaskOverdue(dueAt?: string | null, hasTime?: boolean): boolean {
+    if (!dueAt) return false
+    const due = new Date(dueAt)
+    if (isNaN(due.getTime())) return false
+    if (hasTime) return due < new Date()
+    const endOfDay = new Date(due)
+    endOfDay.setHours(23, 59, 59, 999)
+    return endOfDay < new Date()
+}
+
 export function daysRemaining(dueDate?: string | null): number | null {
     if (!dueDate) return null
     const due = new Date(dueDate)

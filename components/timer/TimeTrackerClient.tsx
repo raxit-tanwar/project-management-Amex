@@ -563,9 +563,6 @@ export default function TimeTrackerClient({ userId, userDisplayName, initialProj
         grouped.push({ key, label, entries, total })
     }
 
-    const selectedProject = projects.find(p => p.id === selection.projectId)
-    const tasks = selectedProject?.tasks || []
-
     const weekTotal = timeEntries.reduce((s, e) => s + (e.duration_seconds || 0), 0)
 
     return (
@@ -604,26 +601,6 @@ export default function TimeTrackerClient({ userId, userDisplayName, initialProj
                         onSelect={id => setSelection({ projectId: id, taskId: null })}
                         onCreateNew={() => setShowQuickCreate(true)}
                     />
-
-                    {/* Task selector */}
-                    {tasks.length > 0 && !timer.isRunning && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 14px', borderLeft: '1px solid var(--border)' }}>
-                            <select
-                                value={selection.taskId || ''}
-                                onChange={e => setSelection({ ...selection, taskId: e.target.value || null })}
-                                style={{
-                                    border: 'none', outline: 'none', background: 'transparent',
-                                    fontSize: 14, color: selection.taskId ? 'var(--text)' : 'var(--text-dim)',
-                                    fontFamily: 'Inter, sans-serif', cursor: 'pointer', minWidth: 110
-                                }}
-                            >
-                                <option value="">Task (opt.)</option>
-                                {tasks.map(t => (
-                                    <option key={t.id} value={t.id}>{t.name}</option>
-                                ))}
-                            </select>
-                        </div>
-                    )}
 
                     {/* Timer display — fixed width, no layout shift */}
                     <div style={{
