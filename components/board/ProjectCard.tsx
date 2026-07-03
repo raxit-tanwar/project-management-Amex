@@ -1,6 +1,7 @@
 'use client'
 
 import { isOverdue, isTaskOverdue } from '@/lib/utils'
+import { User, Clock, AlertTriangle, CheckCircle2 } from 'lucide-react'
 
 interface ProjectCardProps {
     project: {
@@ -37,7 +38,7 @@ export default function ProjectCard({ project, totalSeconds, formatHours, onClic
     const tasksInProgress = tasks.filter(t => t.status === 'In Progress').length
     const overdueTasks = tasks.filter(t => t.status !== 'Done' && isTaskOverdue(t.due_at, t.due_has_time)).length
     const overdue = isOverdue(project.due_date)
-    const stageColor = project.stage?.color ?? '#6366f1'
+    const stageColor = project.stage?.color ?? '#4f46e5'
 
     const checklistPercent = checklist.length > 0 ? (checklistDone / checklist.length) * 100 : 0
     const allChecklistDone = checklist.length > 0 && checklistDone === checklist.length
@@ -48,25 +49,23 @@ export default function ProjectCard({ project, totalSeconds, formatHours, onClic
             style={{
                 background: 'var(--surface)',
                 border: '1px solid var(--border)',
-                borderRadius: 12,
+                borderRadius: 10,
                 padding: '14px 16px',
                 cursor: 'pointer',
-                transition: 'all 0.18s ease',
+                transition: 'box-shadow 0.15s ease, border-color 0.15s ease',
                 position: 'relative',
                 borderLeft: `3px solid ${stageColor}`,
-                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                boxShadow: 'var(--shadow-xs)',
             }}
             onMouseEnter={e => {
                 const el = e.currentTarget as HTMLElement
-                el.style.boxShadow = '0 4px 16px rgba(0,0,0,0.10)'
-                el.style.transform = 'translateY(-1px)'
+                el.style.boxShadow = 'var(--shadow-md)'
                 el.style.borderColor = 'var(--border2)'
                 el.style.borderLeftColor = stageColor
             }}
             onMouseLeave={e => {
                 const el = e.currentTarget as HTMLElement
-                el.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)'
-                el.style.transform = 'translateY(0)'
+                el.style.boxShadow = 'var(--shadow-xs)'
                 el.style.borderColor = 'var(--border)'
                 el.style.borderLeftColor = stageColor
             }}
@@ -95,7 +94,7 @@ export default function ProjectCard({ project, totalSeconds, formatHours, onClic
                         border: `1px solid ${stageColor}30`,
                         padding: '2px 8px',
                         borderRadius: 5,
-                        fontFamily: '"Courier New", monospace',
+                        fontFamily: 'var(--font-mono)',
                         textTransform: 'uppercase'
                     }}>
                         {project.event_code}
@@ -105,7 +104,7 @@ export default function ProjectCard({ project, totalSeconds, formatHours, onClic
 
             {/* Project name */}
             <div style={{
-                fontSize: 14, fontWeight: 700,
+                fontSize: 14, fontWeight: 600,
                 color: 'var(--text)',
                 lineHeight: 1.3,
                 marginBottom: 8,
@@ -120,7 +119,7 @@ export default function ProjectCard({ project, totalSeconds, formatHours, onClic
                     <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                         <span style={{
                             width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-                            background: project.client_color ?? '#6366f1'
+                            background: project.client_color ?? '#4f46e5'
                         }} />
                         <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 500 }}>
                             {project.client.name}
@@ -129,7 +128,7 @@ export default function ProjectCard({ project, totalSeconds, formatHours, onClic
                 )}
                 {project.stakeholder_name && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                        <span style={{ fontSize: 12 }}>👤</span>
+                        <User size={12} color="var(--text-dim)" />
                         <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 500 }}>
                             {project.stakeholder_name}
                         </span>
@@ -147,18 +146,19 @@ export default function ProjectCard({ project, totalSeconds, formatHours, onClic
                 {tasks.length > 0 && (
                     <div style={{
                         display: 'flex', alignItems: 'center', gap: 5,
-                        padding: '3px 8px', borderRadius: 20,
+                        padding: '3px 8px', borderRadius: 6,
                         background: tasksDone === tasks.length ? 'rgba(22,163,74,0.08)' : 'var(--surface2)',
                         border: `1px solid ${tasksDone === tasks.length ? 'rgba(22,163,74,0.2)' : 'var(--border)'}`,
                     }}>
+                        <CheckCircle2 size={11} color={tasksDone === tasks.length ? 'var(--success)' : 'var(--text-dim)'} />
                         <span style={{
                             fontSize: 11, fontWeight: 600,
-                            color: tasksDone === tasks.length ? '#16a34a' : 'var(--text-muted)'
+                            color: tasksDone === tasks.length ? 'var(--success)' : 'var(--text-muted)'
                         }}>
-                            ✓ {tasksDone}/{tasks.length}
+                            {tasksDone}/{tasks.length}
                         </span>
                         {tasksInProgress > 0 && (
-                            <span style={{ fontSize: 10, color: '#d97706', fontWeight: 600 }}>· {tasksInProgress} active</span>
+                            <span style={{ fontSize: 10, color: 'var(--warning)', fontWeight: 600 }}>· {tasksInProgress} active</span>
                         )}
                     </div>
                 )}
@@ -167,12 +167,13 @@ export default function ProjectCard({ project, totalSeconds, formatHours, onClic
                 {overdueTasks > 0 && (
                     <div style={{
                         display: 'flex', alignItems: 'center', gap: 4,
-                        padding: '3px 8px', borderRadius: 20,
+                        padding: '3px 8px', borderRadius: 6,
                         background: 'rgba(220,38,38,0.08)',
                         border: '1px solid rgba(220,38,38,0.25)',
                     }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: '#dc2626' }}>
-                            ⚠ {overdueTasks} overdue
+                        <AlertTriangle size={11} color="var(--danger)" />
+                        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--danger)' }}>
+                            {overdueTasks} overdue
                         </span>
                     </div>
                 )}
@@ -181,16 +182,16 @@ export default function ProjectCard({ project, totalSeconds, formatHours, onClic
                 {checklist.length > 0 && (
                     <div style={{
                         display: 'flex', alignItems: 'center', gap: 5,
-                        padding: '3px 8px', borderRadius: 20,
+                        padding: '3px 8px', borderRadius: 6,
                         background: allChecklistDone ? 'rgba(22,163,74,0.08)' : 'var(--surface2)',
                         border: `1px solid ${allChecklistDone ? 'rgba(22,163,74,0.2)' : 'var(--border)'}`,
                         minWidth: 70
                     }}>
                         {/* Mini progress bar */}
                         <div style={{ width: 30, height: 4, borderRadius: 2, background: 'var(--border2)', overflow: 'hidden' }}>
-                            <div style={{ width: `${checklistPercent}%`, height: '100%', borderRadius: 2, background: allChecklistDone ? '#16a34a' : '#6366f1', transition: 'width 0.3s' }} />
+                            <div style={{ width: `${checklistPercent}%`, height: '100%', borderRadius: 2, background: allChecklistDone ? 'var(--success)' : 'var(--accent)', transition: 'width 0.3s' }} />
                         </div>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: allChecklistDone ? '#16a34a' : 'var(--text-muted)' }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: allChecklistDone ? 'var(--success)' : 'var(--text-muted)' }}>
                             {checklistDone}/{checklist.length}
                         </span>
                     </div>
@@ -198,8 +199,8 @@ export default function ProjectCard({ project, totalSeconds, formatHours, onClic
 
                 {/* Time tracked */}
                 {totalSeconds > 0 && (
-                    <span style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 600, fontFamily: 'monospace', marginLeft: 'auto' }}>
-                        ⏱ {formatHours(totalSeconds)}
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-dim)', fontWeight: 500, fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', marginLeft: 'auto' }}>
+                        <Clock size={11} /> {formatHours(totalSeconds)}
                     </span>
                 )}
 
@@ -207,13 +208,12 @@ export default function ProjectCard({ project, totalSeconds, formatHours, onClic
                 {project.due_date && (
                     <span style={{
                         fontSize: 11, fontWeight: 600,
-                        color: overdue ? '#dc2626' : 'var(--text-dim)',
+                        color: overdue ? 'var(--danger)' : 'var(--text-dim)',
                         background: overdue ? 'rgba(220,38,38,0.06)' : 'transparent',
                         padding: overdue ? '1px 5px' : '0',
                         borderRadius: 4,
                         marginLeft: totalSeconds > 0 ? 0 : 'auto'
                     }}>
-                        {overdue ? '⚠ ' : ''}
                         {new Date(project.due_date).toLocaleDateString('en', { month: 'short', day: 'numeric' })}
                     </span>
                 )}

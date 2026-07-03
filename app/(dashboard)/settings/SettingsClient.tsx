@@ -3,13 +3,17 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import {
+    Layers, Users, ListChecks, Timer, Database,
+    Check, Lock, GripVertical, Download, AlertTriangle, type LucideIcon,
+} from 'lucide-react'
 
 interface Stage { id: string; name: string; color: string; position: number }
 interface Template { id: string; text: string; position: number }
 interface Client { id: string; name: string }
 interface Settings { work_start_time?: string; work_end_time?: string; idle_alert_minutes?: number; long_session_alert_minutes?: number }
 
-const STAGE_COLORS = ['#64748b', '#6366f1', '#f59e0b', '#ef4444', '#22c55e', '#8b5cf6', '#06b6d4', '#ec4899']
+const STAGE_COLORS = ['#64748b', '#4f46e5', '#f59e0b', '#ef4444', '#22c55e', '#8b5cf6', '#06b6d4', '#ec4899']
 const LOCKED_STAGE_NAME = 'Project Assigned'
 
 type SettingsTab = 'stages' | 'clients' | 'checklist' | 'timer' | 'data'
@@ -173,12 +177,12 @@ export default function SettingsClient({ userId, initialStages, initialTemplates
         a.click()
     }
 
-    const TABS: { id: SettingsTab; label: string; icon: string }[] = [
-        { id: 'stages', label: 'Stages', icon: '⚡' },
-        { id: 'clients', label: 'Clients', icon: '👤' },
-        { id: 'checklist', label: 'Checklist Template', icon: '☑' },
-        { id: 'timer', label: 'Timer Preferences', icon: '⏱' },
-        { id: 'data', label: 'Data', icon: '💾' },
+    const TABS: { id: SettingsTab; label: string; icon: LucideIcon }[] = [
+        { id: 'stages', label: 'Stages', icon: Layers },
+        { id: 'clients', label: 'Clients', icon: Users },
+        { id: 'checklist', label: 'Checklist Template', icon: ListChecks },
+        { id: 'timer', label: 'Timer Preferences', icon: Timer },
+        { id: 'data', label: 'Data', icon: Database },
     ]
 
     return (
@@ -190,31 +194,35 @@ export default function SettingsClient({ userId, initialStages, initialTemplates
                 background: 'var(--surface)', flexShrink: 0
             }}>
                 <div>
-                    <h1 style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.02em' }}>Settings</h1>
+                    <h1 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em' }}>Settings</h1>
                     <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>Customize your FlowDesk workspace</p>
                 </div>
                 {saved && (
                     <div style={{
-                        padding: '6px 14px', borderRadius: 8,
-                        background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)',
-                        color: 'var(--success)', fontSize: 13, fontWeight: 600
-                    }}>✓ Saved</div>
+                        padding: '5px 12px', borderRadius: 'var(--radius-sm)',
+                        background: 'rgba(22,163,74,0.08)', border: '1px solid rgba(22,163,74,0.25)',
+                        color: 'var(--success)', fontSize: 13, fontWeight: 600,
+                        display: 'inline-flex', alignItems: 'center', gap: 6
+                    }}><Check size={13} /> Saved</div>
                 )}
             </div>
 
             {/* Tabs */}
             <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', padding: '0 28px', background: 'var(--surface)', flexShrink: 0 }}>
-                {TABS.map(t => (
-                    <button key={t.id} onClick={() => setTab(t.id)} style={{
-                        padding: '12px 14px', fontSize: 13, fontWeight: tab === t.id ? 700 : 500,
-                        color: tab === t.id ? 'var(--accent-light)' : 'var(--text-muted)',
-                        background: 'none', border: 'none', cursor: 'pointer',
-                        borderBottom: `2px solid ${tab === t.id ? 'var(--accent)' : 'transparent'}`,
-                        transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: 6
-                    }}>
-                        {t.icon} {t.label}
-                    </button>
-                ))}
+                {TABS.map(t => {
+                    const TabIcon = t.icon
+                    return (
+                        <button key={t.id} onClick={() => setTab(t.id)} style={{
+                            padding: '12px 14px', fontSize: 13, fontWeight: tab === t.id ? 600 : 500,
+                            color: tab === t.id ? 'var(--accent)' : 'var(--text-muted)',
+                            background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                            borderBottom: `2px solid ${tab === t.id ? 'var(--accent)' : 'transparent'}`,
+                            transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: 6
+                        }}>
+                            <TabIcon size={14} /> {t.label}
+                        </button>
+                    )
+                })}
             </div>
 
             <div style={{ flex: 1, overflow: 'auto', padding: '28px', maxWidth: 680 }}>
@@ -230,13 +238,13 @@ export default function SettingsClient({ userId, initialStages, initialTemplates
                             </p>
                             {!isReordering ? (
                                 <button className="btn btn-surface btn-sm" onClick={enterReorderMode} style={{ flexShrink: 0, marginLeft: 16 }}>
-                                    ⠿ Reorder
+                                    <GripVertical size={13} /> Reorder
                                 </button>
                             ) : (
                                 <div style={{ display: 'flex', gap: 8, flexShrink: 0, marginLeft: 16 }}>
                                     <button className="btn btn-ghost btn-sm" onClick={cancelReorder}>Cancel</button>
                                     <button className="btn btn-primary btn-sm" onClick={saveStageOrder} disabled={savingOrder}>
-                                        {savingOrder ? 'Saving…' : '✓ Save Order'}
+                                        {savingOrder ? 'Saving…' : 'Save Order'}
                                     </button>
                                 </div>
                             )}
@@ -251,11 +259,11 @@ export default function SettingsClient({ userId, initialStages, initialTemplates
                                     <div key={stage.id} style={{
                                         display: 'flex', alignItems: 'center', gap: 10,
                                         padding: '10px 14px', background: 'var(--surface2)',
-                                        border: `1px solid ${isLocked ? 'rgba(99,102,241,0.25)' : 'var(--border)'}`,
+                                        border: `1px solid ${isLocked ? 'rgba(79,70,229,0.25)' : 'var(--border)'}`,
                                         borderRadius: 10
                                     }}>
                                         {isLocked
-                                            ? <span title="Default stage — always position 0" style={{ fontSize: 13, flexShrink: 0, opacity: 0.5 }}>🔒</span>
+                                            ? <Lock size={13} color="var(--text-dim)" style={{ flexShrink: 0 }} />
                                             : <div style={{ width: 6, flexShrink: 0 }} />
                                         }
                                         <div style={{ width: 12, height: 12, borderRadius: '50%', background: stage.color, flexShrink: 0 }} />
@@ -266,7 +274,7 @@ export default function SettingsClient({ userId, initialStages, initialTemplates
                                             style={{ flex: 1, background: 'transparent', border: 'none', padding: '0', fontSize: 14, fontWeight: 600, boxShadow: 'none' }}
                                         />
                                         {isLocked && (
-                                            <span style={{ fontSize: 11, color: '#6366f1', fontWeight: 600, background: 'rgba(99,102,241,0.1)', padding: '2px 8px', borderRadius: 5, flexShrink: 0 }}>Default</span>
+                                            <span style={{ fontSize: 11, color: '#4f46e5', fontWeight: 600, background: 'rgba(79,70,229,0.1)', padding: '2px 8px', borderRadius: 5, flexShrink: 0 }}>Default</span>
                                         )}
                                         <button onClick={() => !isLocked && deleteStage(stage.id)} disabled={isLocked} className="btn-icon"
                                             style={{ color: isLocked ? 'var(--text-dim)' : 'var(--danger)', opacity: isLocked ? 0.3 : 1 }}
@@ -298,21 +306,21 @@ export default function SettingsClient({ userId, initialStages, initialTemplates
                                         style={{
                                             display: 'flex', alignItems: 'center', gap: 10,
                                             padding: '10px 14px',
-                                            background: isDragOver ? 'rgba(99,102,241,0.08)' : 'var(--surface2)',
-                                            border: `2px solid ${isDragOver ? 'rgba(99,102,241,0.5)' : isLocked ? 'rgba(99,102,241,0.25)' : 'var(--border)'}`,
+                                            background: isDragOver ? 'rgba(79,70,229,0.08)' : 'var(--surface2)',
+                                            border: `2px solid ${isDragOver ? 'rgba(79,70,229,0.5)' : isLocked ? 'rgba(79,70,229,0.25)' : 'var(--border)'}`,
                                             borderRadius: 10, opacity: isDragging ? 0.35 : 1,
                                             cursor: isLocked ? 'default' : 'grab',
                                             transition: 'all 0.12s', userSelect: 'none'
                                         }}
                                     >
                                         {isLocked
-                                            ? <span title="Locked at position 0" style={{ fontSize: 13, flexShrink: 0, opacity: 0.5 }}>🔒</span>
-                                            : <span style={{ fontSize: 18, color: 'var(--text-dim)', flexShrink: 0, lineHeight: 1, cursor: 'grab' }}>⠿</span>
+                                            ? <Lock size={13} color="var(--text-dim)" style={{ flexShrink: 0 }} />
+                                            : <GripVertical size={15} color="var(--text-dim)" style={{ flexShrink: 0, cursor: 'grab' }} />
                                         }
                                         <div style={{ width: 12, height: 12, borderRadius: '50%', background: stage.color, flexShrink: 0 }} />
                                         <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{stage.name}</span>
                                         {isLocked && (
-                                            <span style={{ fontSize: 11, color: '#6366f1', fontWeight: 600, background: 'rgba(99,102,241,0.1)', padding: '2px 8px', borderRadius: 5, flexShrink: 0 }}>Default</span>
+                                            <span style={{ fontSize: 11, color: '#4f46e5', fontWeight: 600, background: 'rgba(79,70,229,0.1)', padding: '2px 8px', borderRadius: 5, flexShrink: 0 }}>Default</span>
                                         )}
                                     </div>
                                 )
@@ -332,11 +340,47 @@ export default function SettingsClient({ userId, initialStages, initialTemplates
                                 {STAGE_COLORS.map(c => (
                                     <button key={c} type="button" onClick={() => setNewStageColor(c)} style={{
                                         width: 22, height: 22, borderRadius: '50%', background: c, border: 'none', cursor: 'pointer',
-                                        outline: newStageColor === c ? '2px solid white' : '2px solid transparent', outlineOffset: 2
+                                        outline: newStageColor === c ? '2px solid var(--text)' : '2px solid transparent', outlineOffset: 2
                                     }} />
                                 ))}
                             </div>
                             <button className="btn btn-primary btn-sm" onClick={addStage} style={{ flexShrink: 0 }}>Add stage</button>
+                        </div>
+                    </div>
+                )}
+
+                {/* CLIENTS */}
+                {tab === 'clients' && (
+                    <div>
+                        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20, lineHeight: 1.6 }}>
+                            Manage the clients you can assign to projects.
+                        </p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+                            {clients.map(c => (
+                                <div key={c.id} style={{
+                                    display: 'flex', alignItems: 'center', gap: 10,
+                                    padding: '10px 14px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)'
+                                }}>
+                                    <Users size={15} color="var(--text-dim)" style={{ flexShrink: 0 }} />
+                                    <span style={{ flex: 1, fontSize: 14, color: 'var(--text)' }}>{c.name}</span>
+                                    <button onClick={() => deleteClient(c.id)} className="btn-icon" style={{ color: 'var(--danger)' }} title="Delete client">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                                    </button>
+                                </div>
+                            ))}
+                            {clients.length === 0 && (
+                                <p style={{ fontSize: 13, color: 'var(--text-dim)', textAlign: 'center', padding: '20px 0' }}>No clients yet.</p>
+                            )}
+                        </div>
+                        <div style={{ display: 'flex', gap: 10 }}>
+                            <input
+                                className="input"
+                                placeholder="Add client..."
+                                value={newClientName}
+                                onChange={e => setNewClientName(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && addClient()}
+                            />
+                            <button className="btn btn-primary btn-sm" onClick={addClient} style={{ flexShrink: 0 }}>Add client</button>
                         </div>
                     </div>
                 )}
@@ -353,7 +397,7 @@ export default function SettingsClient({ userId, initialStages, initialTemplates
                                     display: 'flex', alignItems: 'center', gap: 10,
                                     padding: '10px 14px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10
                                 }}>
-                                    <span style={{ fontSize: 16, flexShrink: 0 }}>☑</span>
+                                    <ListChecks size={15} color="var(--text-dim)" style={{ flexShrink: 0 }} />
                                     <span style={{ flex: 1, fontSize: 14, color: 'var(--text)' }}>{t.text}</span>
                                     <button onClick={() => deleteTemplate(t.id)} className="btn-icon" style={{ color: 'var(--danger)' }}>
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12" /></svg>
@@ -448,12 +492,14 @@ export default function SettingsClient({ userId, initialStages, initialTemplates
                                 Download all your projects, tasks, time entries, stages, and settings as a JSON file. Use this for backup or migration.
                             </p>
                             <button className="btn btn-surface" onClick={exportData}>
-                                ↓ Export all data (JSON)
+                                <Download size={14} /> Export all data (JSON)
                             </button>
                         </div>
 
                         <div className="card" style={{ padding: '24px', borderColor: 'rgba(239,68,68,0.2)' }}>
-                            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: 'var(--danger)' }}>⚠ Danger zone</h3>
+                            <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8, color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <AlertTriangle size={16} /> Danger zone
+                            </h3>
                             <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16, lineHeight: 1.6 }}>
                                 Deleting your account is permanent and cannot be undone. All your projects, tasks, time entries, and settings will be erased.
                             </p>

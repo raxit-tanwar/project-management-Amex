@@ -6,7 +6,7 @@ import {
     startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval,
     format, isSameMonth, addMonths, subMonths, isToday,
 } from 'date-fns'
-import { FolderKanban, ListTodo, Clock, CalendarClock, ChevronRight, ChevronLeft } from 'lucide-react'
+import { FolderKanban, ListTodo, Clock, CalendarClock, ChevronRight, ChevronLeft, CalendarDays } from 'lucide-react'
 import { daysRemaining, isTaskOverdue } from '@/lib/utils'
 
 interface Stage { id: string; name: string; color: string; position: number }
@@ -26,7 +26,8 @@ interface OverviewClientProps {
 }
 
 const CARD: React.CSSProperties = {
-    background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 20,
+    background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 20,
+    boxShadow: 'var(--shadow-xs)',
 }
 
 // Daily work allotment used for efficiency figures (user works ~8h/day).
@@ -134,7 +135,7 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
             {/* Header */}
             <div>
                 <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.02em', margin: 0 }}>
-                    Good {greeting}, {userDisplayName || 'there'} 👋
+                    Good {greeting}, {userDisplayName || 'there'}
                 </h1>
                 <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>
                     {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
@@ -152,7 +153,7 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
                             View board
                         </Link>
                     </div>
-                    <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--text)', marginBottom: 10 }}>
+                    <div style={{ fontSize: 26, fontWeight: 700, color: 'var(--text)', marginBottom: 10 }}>
                         {totalActive} <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-muted)' }}>active projects</span>
                     </div>
                     <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: 'var(--border)', marginBottom: 10 }}>
@@ -179,15 +180,15 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
                             View tasks
                         </Link>
                     </div>
-                    <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--text)', marginBottom: 10 }}>
+                    <div style={{ fontSize: 26, fontWeight: 700, color: 'var(--text)', marginBottom: 10 }}>
                         {pendingTasks.length} <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-muted)' }}>across {projectsWithPending} project{projectsWithPending !== 1 ? 's' : ''}</span>
                     </div>
                     <div style={{ height: 8, borderRadius: 4, background: 'var(--border)', overflow: 'hidden', marginBottom: 10 }}>
-                        <div style={{ height: '100%', width: `${allTasks.length ? (pendingTasks.length / allTasks.length) * 100 : 0}%`, background: 'linear-gradient(90deg, #6366f1, #8b5cf6)', borderRadius: 4 }} />
+                        <div style={{ height: '100%', width: `${allTasks.length ? (pendingTasks.length / allTasks.length) * 100 : 0}%`, background: 'var(--accent)', borderRadius: 4 }} />
                     </div>
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                         <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 6, background: 'var(--surface2)', color: 'var(--text-muted)' }}>To Do · {todoCount}</span>
-                        <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 6, background: 'rgba(99,102,241,0.1)', color: 'var(--accent-light)' }}>In Progress · {inProgressCount}</span>
+                        <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 6, background: 'rgba(79,70,229,0.1)', color: 'var(--accent-light)' }}>In Progress · {inProgressCount}</span>
                         {overdueTasks.length > 0 && (
                             <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: 'rgba(220,38,38,0.12)', color: 'var(--danger)' }}>Overdue · {overdueTasks.length}</span>
                         )}
@@ -203,7 +204,7 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
                             View reports
                         </Link>
                     </div>
-                    <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>
+                    <div style={{ fontSize: 26, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>
                         {formatHm(todaySeconds)} <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-muted)' }}>logged today</span>
                     </div>
                     <div style={{ fontSize: 12, fontWeight: 600, color: efficiencyToday >= 1 ? 'var(--success)' : 'var(--text-muted)', marginBottom: 10 }}>
@@ -213,7 +214,7 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
                         <div style={{
                             height: '100%', borderRadius: 4,
                             width: `${Math.min(100, efficiencyToday * 100)}%`,
-                            background: efficiencyToday >= 1 ? 'var(--success)' : 'linear-gradient(90deg, #6366f1, #8b5cf6)',
+                            background: efficiencyToday >= 1 ? 'var(--success)' : 'var(--accent)',
                         }} />
                     </div>
                     <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 6, background: 'var(--surface2)', color: 'var(--text-muted)' }}>
@@ -225,7 +226,7 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
             {/* Quick stat chips */}
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                 {[
-                    { label: 'Pending Tasks', count: pendingTasks.length, color: '#6366f1', bg: 'rgba(99,102,241,0.1)' },
+                    { label: 'Pending Tasks', count: pendingTasks.length, color: '#4f46e5', bg: 'rgba(79,70,229,0.1)' },
                     { label: 'Overdue Tasks', count: overdueTasks.length, color: '#dc2626', bg: 'rgba(220,38,38,0.1)' },
                     { label: 'Tasks Due This Week', count: tasksDueThisWeek.length, color: '#d97706', bg: 'rgba(217,119,6,0.1)' },
                     { label: 'Active Projects', count: totalActive, color: '#16a34a', bg: 'rgba(22,163,74,0.1)' },
@@ -237,7 +238,7 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
                         <div style={{
                             width: 38, height: 38, borderRadius: 10, background: chip.bg,
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: 16, fontWeight: 800, color: chip.color, flexShrink: 0,
+                            fontSize: 16, fontWeight: 700, color: chip.color, flexShrink: 0,
                         }}>{chip.count}</div>
                         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{chip.label}</span>
                         <ChevronRight size={16} color="var(--text-dim)" style={{ marginLeft: 'auto' }} />
@@ -318,7 +319,7 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
                                 {selectedDay ? `Due ${format(new Date(selectedDay), 'MMM d')}` : 'Action Items'}
                             </span>
                             {overdueTasks.length > 0 && !selectedDay && (
-                                <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: 'rgba(220,38,38,0.12)', color: 'var(--danger)' }}>
+                                <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: 'rgba(220,38,38,0.12)', color: 'var(--danger)' }}>
                                     {overdueTasks.length} overdue
                                 </span>
                             )}
@@ -340,14 +341,15 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
                                             <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent-light)' }}>{t.eventCode || t.projectName}</span>
                                             <span style={{
-                                                fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20,
-                                                background: t.status === 'In Progress' ? 'rgba(99,102,241,0.12)' : 'var(--surface2)',
+                                                fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
+                                                background: t.status === 'In Progress' ? 'rgba(79,70,229,0.12)' : 'var(--surface2)',
                                                 color: t.status === 'In Progress' ? 'var(--accent-light)' : 'var(--text-muted)',
                                             }}>{t.status}</span>
                                         </div>
                                         <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 8 }}>{t.name}</div>
-                                        <div style={{ fontSize: 12, fontWeight: 600, color: overdue ? 'var(--danger)' : 'var(--text-muted)' }}>
-                                            📅 {formatTaskDue(t.due_at, t.due_has_time)}{overdue ? ' · overdue' : ''}
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 500, color: overdue ? 'var(--danger)' : 'var(--text-muted)' }}>
+                                            <CalendarDays size={13} />
+                                            {formatTaskDue(t.due_at, t.due_has_time)}{overdue ? ' · overdue' : ''}
                                         </div>
                                     </Link>
                                 )
