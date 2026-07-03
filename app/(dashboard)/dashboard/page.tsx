@@ -16,7 +16,7 @@ export default async function DashboardPage() {
             id, name, event_code, due_date, stage_id,
             stage:stages(id, name, color),
             client:clients(name),
-            tasks(id, status, name)
+            tasks(id, status, name, due_at, due_has_time)
         `).eq('user_id', user.id).eq('archived', false).order('due_date', { ascending: true, nullsFirst: false }),
     ])
 

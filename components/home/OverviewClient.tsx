@@ -7,10 +7,18 @@ import {
     format, isSameDay, isSameMonth, addMonths, subMonths, isToday,
 } from 'date-fns'
 import { FolderKanban, ListTodo, CalendarClock, ChevronRight, ChevronLeft, AlertCircle } from 'lucide-react'
-import { isOverdue, daysRemaining } from '@/lib/utils'
+import { isOverdue, daysRemaining, isTaskOverdue } from '@/lib/utils'
 
 interface Stage { id: string; name: string; color: string; position: number }
-interface Task { id: string; status: string; name: string }
+interface Task { id: string; status: string; name: string; due_at?: string | null; due_has_time?: boolean }
+
+function formatTaskDue(due_at?: string | null, hasTime?: boolean): string {
+    if (!due_at) return ''
+    const d = new Date(due_at)
+    const datePart = d.toLocaleDateString('en', { month: 'short', day: 'numeric' })
+    if (!hasTime) return datePart
+    return `${datePart} · ${d.toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' })}`
+}
 interface Project {
     id: string; name: string; event_code?: string; due_date?: string | null
     stage_id?: string; stage?: Stage | null; client?: { name: string } | null
@@ -54,17 +62,24 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
     const inProgressCount = allTasks.filter(t => t.status === 'In Progress').length
     const projectsWithPending = new Set(pendingTasks.map(t => t.projectId)).size
 
+    // Task-level due tracking (uses each task's own due_at, not the parent project's due date)
+    const overdueTasks = pendingTasks.filter(t => isTaskOverdue(t.due_at, t.due_has_time))
+    const tasksDueThisWeek = pendingTasks.filter(t => {
+        const d = daysRemaining(t.due_at)
+        return d !== null && d >= 0 && d <= 7
+    })
+
     const overdueProjects = projects.filter(p => isOverdue(p.due_date))
     const dueThisWeek = projects.filter(p => {
         const d = daysRemaining(p.due_date)
         return d !== null && d >= 0 && d <= 7
     })
 
-    // Upcoming tasks — pending tasks sorted by their parent project's due date
+    // Pending tasks that carry their own due date — overdue first, then soonest.
     const upcomingTasks = useMemo(() =>
         pendingTasks
-            .filter(t => t.projectDue)
-            .sort((a, b) => new Date(a.projectDue!).getTime() - new Date(b.projectDue!).getTime())
+            .filter(t => t.due_at)
+            .sort((a, b) => new Date(a.due_at!).getTime() - new Date(b.due_at!).getTime())
             .slice(0, 6)
     , [pendingTasks])
 
@@ -152,9 +167,12 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
                     <div style={{ height: 8, borderRadius: 4, background: 'var(--border)', overflow: 'hidden', marginBottom: 10 }}>
                         <div style={{ height: '100%', width: `${allTasks.length ? (pendingTasks.length / allTasks.length) * 100 : 0}%`, background: 'linear-gradient(90deg, #6366f1, #8b5cf6)', borderRadius: 4 }} />
                     </div>
-                    <div style={{ display: 'flex', gap: 6 }}>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                         <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 6, background: 'var(--surface2)', color: 'var(--text-muted)' }}>To Do · {todoCount}</span>
                         <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 6, background: 'rgba(99,102,241,0.1)', color: 'var(--accent-light)' }}>In Progress · {inProgressCount}</span>
+                        {overdueTasks.length > 0 && (
+                            <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: 'rgba(220,38,38,0.12)', color: 'var(--danger)' }}>Overdue · {overdueTasks.length}</span>
+                        )}
                     </div>
                 </div>
 
@@ -183,8 +201,9 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                 {[
                     { label: 'Pending Tasks', count: pendingTasks.length, color: '#6366f1', bg: 'rgba(99,102,241,0.1)' },
+                    { label: 'Overdue Tasks', count: overdueTasks.length, color: '#dc2626', bg: 'rgba(220,38,38,0.1)' },
+                    { label: 'Tasks Due This Week', count: tasksDueThisWeek.length, color: '#d97706', bg: 'rgba(217,119,6,0.1)' },
                     { label: 'Overdue Projects', count: overdueProjects.length, color: '#dc2626', bg: 'rgba(220,38,38,0.1)' },
-                    { label: 'Due This Week', count: dueThisWeek.length, color: '#d97706', bg: 'rgba(217,119,6,0.1)' },
                     { label: 'Active Projects', count: totalActive, color: '#16a34a', bg: 'rgba(22,163,74,0.1)' },
                 ].map(chip => (
                     <Link key={chip.label} href="/board" style={{
@@ -201,6 +220,44 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
                     </Link>
                 ))}
             </div>
+
+            {/* Action items — pending tasks that have their own due date */}
+            {upcomingTasks.length > 0 && (
+                <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                        <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', margin: 0 }}>Action Items</h2>
+                        {overdueTasks.length > 0 && (
+                            <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: 'rgba(220,38,38,0.12)', color: 'var(--danger)' }}>
+                                {overdueTasks.length} overdue
+                            </span>
+                        )}
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
+                        {upcomingTasks.map(t => {
+                            const overdue = isTaskOverdue(t.due_at, t.due_has_time)
+                            return (
+                                <Link key={t.id} href={`/board?project=${t.projectId}`} style={{
+                                    ...CARD, padding: 16, textDecoration: 'none', display: 'block',
+                                    borderColor: overdue ? 'rgba(220,38,38,0.4)' : 'var(--border)',
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+                                        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent-light)' }}>{t.eventCode || t.projectName}</span>
+                                        <span style={{
+                                            fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20,
+                                            background: t.status === 'In Progress' ? 'rgba(99,102,241,0.12)' : 'var(--surface2)',
+                                            color: t.status === 'In Progress' ? 'var(--accent-light)' : 'var(--text-muted)',
+                                        }}>{t.status}</span>
+                                    </div>
+                                    <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 8 }}>{t.name}</div>
+                                    <div style={{ fontSize: 12, fontWeight: 600, color: overdue ? 'var(--danger)' : 'var(--text-muted)' }}>
+                                        📅 {formatTaskDue(t.due_at, t.due_has_time)}{overdue ? ' · overdue' : ''}
+                                    </div>
+                                </Link>
+                            )
+                        })}
+                    </div>
+                </div>
+            )}
 
             {/* Schedule: calendar + upcoming due dates */}
             <div>
