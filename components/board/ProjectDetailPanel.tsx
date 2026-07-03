@@ -214,36 +214,61 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
         setTimeEntries(prev => prev.map(e => e.id === entryId ? { ...e, tag: tag || null } : e))
     }
 
-    // Propagate a new task set to the parent board card + invalidate server-rendered
-    // surfaces (dashboard pending-tasks) so everything reflects the change immediately.
-    const syncTasks = (next: Task[]) => {
+    // Apply a new task set locally + to the parent board card (optimistic UI only —
+    // no server-cache invalidation here).
+    const applyTasks = (next: Task[]) => {
         setTasks(next)
         onTasksChange?.(project.id, next)
-        router.refresh()
     }
+
+    // Invalidate server-rendered surfaces (e.g. the dashboard's pending/overdue tasks,
+    // which are fetched at request time and can be served stale from the client router
+    // cache). MUST run only AFTER the DB write has committed, otherwise the refetch reads
+    // pre-update data and re-caches the stale state.
+    const invalidateServerData = () => router.refresh()
 
     // Tasks (action items)
     const addTask = async () => {
         if (!newTaskName.trim()) return
         const { due_at, due_has_time } = buildDueValue(newTaskDate, newTaskTime)
-        const { data } = await supabase.from('tasks').insert({
+        const { data, error } = await supabase.from('tasks').insert({
             project_id: project.id, user_id: userId, name: newTaskName.trim(),
             status: 'To Do', position: tasks.length, due_at, due_has_time,
         }).select().single()
-        if (data) syncTasks([...tasks, data])
+        if (error || !data) {
+            alert(`Could not add task: ${error?.message ?? 'unknown error'}`)
+            return
+        }
+        applyTasks([...tasks, data])
         setNewTaskName('')
         setNewTaskDate('')
         setNewTaskTime('')
+        invalidateServerData()
     }
 
     const updateTaskStatus = async (taskId: string, status: TaskStatus) => {
-        syncTasks(tasks.map(t => t.id === taskId ? { ...t, status } : t))
-        await supabase.from('tasks').update({ status }).eq('id', taskId)
+        const prev = tasks
+        applyTasks(tasks.map(t => t.id === taskId ? { ...t, status } : t))
+        const { error } = await supabase.from('tasks').update({ status }).eq('id', taskId)
+        if (error) {
+            // Roll the UI back to the truth so the card/panel never show a phantom status.
+            applyTasks(prev)
+            alert(`Could not update task status: ${error.message}`)
+            return
+        }
+        invalidateServerData()
     }
 
     const deleteTask = async (taskId: string) => {
-        syncTasks(tasks.filter(t => t.id !== taskId))
-        await supabase.from('tasks').delete().eq('id', taskId)
+        const prev = tasks
+        applyTasks(tasks.filter(t => t.id !== taskId))
+        const { error } = await supabase.from('tasks').delete().eq('id', taskId)
+        if (error) {
+            applyTasks(prev)
+            alert(`Could not delete task: ${error.message}`)
+            return
+        }
+        invalidateServerData()
     }
 
     // Checklist
@@ -279,7 +304,10 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                 project_id: project.id, user_id: userId, name: content,
                 status: 'To Do', position: tasks.length, due_at, due_has_time,
             }).select().single()
-            if (task) syncTasks([...tasks, task])
+            if (task) {
+                applyTasks([...tasks, task])
+                invalidateServerData()
+            }
         }
 
         const { data } = await supabase.from('project_notes_log').insert({
