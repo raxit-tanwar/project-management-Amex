@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { formatDuration, isProjectOverdue, isTaskOverdue } from '@/lib/utils'
 import { useTimer } from '@/context/TimerContext'
@@ -58,6 +59,10 @@ interface ProjectDetailPanelProps {
     onClose: () => void
     onUpdated: () => void
     onArchived?: () => void
+    // Fired whenever this project's task set changes (status/add/delete) so the parent
+    // board card and any server-rendered surfaces (dashboard) can reflect it live,
+    // without tearing down the open panel.
+    onTasksChange?: (projectId: string, tasks: Task[]) => void
     initialTab?: TabId
 }
 
@@ -93,8 +98,9 @@ const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
     { id: 'notes', label: 'Notes', icon: FileText },
 ]
 
-export default function ProjectDetailPanel({ project, userId, stages, clients, onClose, onUpdated, onArchived, initialTab }: ProjectDetailPanelProps) {
+export default function ProjectDetailPanel({ project, userId, stages, clients, onClose, onUpdated, onArchived, onTasksChange, initialTab }: ProjectDetailPanelProps) {
     const supabase = createClient()
+    const router = useRouter()
     const { startTimer, stopTimer, activeTimer, displayTime, timerNotes: ctxTimerNotes, timerTag: ctxTimerTag, setTimerNotes, setTimerTag } = useTimer()
     const isTimerForThisProject = activeTimer?.projectId === project.id
     const [tab, setTab] = useState<TabId>(initialTab ?? 'overview')
@@ -208,6 +214,14 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
         setTimeEntries(prev => prev.map(e => e.id === entryId ? { ...e, tag: tag || null } : e))
     }
 
+    // Propagate a new task set to the parent board card + invalidate server-rendered
+    // surfaces (dashboard pending-tasks) so everything reflects the change immediately.
+    const syncTasks = (next: Task[]) => {
+        setTasks(next)
+        onTasksChange?.(project.id, next)
+        router.refresh()
+    }
+
     // Tasks (action items)
     const addTask = async () => {
         if (!newTaskName.trim()) return
@@ -216,19 +230,19 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
             project_id: project.id, user_id: userId, name: newTaskName.trim(),
             status: 'To Do', position: tasks.length, due_at, due_has_time,
         }).select().single()
-        if (data) setTasks(prev => [...prev, data])
+        if (data) syncTasks([...tasks, data])
         setNewTaskName('')
         setNewTaskDate('')
         setNewTaskTime('')
     }
 
     const updateTaskStatus = async (taskId: string, status: TaskStatus) => {
-        setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status } : t))
+        syncTasks(tasks.map(t => t.id === taskId ? { ...t, status } : t))
         await supabase.from('tasks').update({ status }).eq('id', taskId)
     }
 
     const deleteTask = async (taskId: string) => {
-        setTasks(prev => prev.filter(t => t.id !== taskId))
+        syncTasks(tasks.filter(t => t.id !== taskId))
         await supabase.from('tasks').delete().eq('id', taskId)
     }
 
@@ -265,7 +279,7 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                 project_id: project.id, user_id: userId, name: content,
                 status: 'To Do', position: tasks.length, due_at, due_has_time,
             }).select().single()
-            if (task) setTasks(prev => [...prev, task])
+            if (task) syncTasks([...tasks, task])
         }
 
         const { data } = await supabase.from('project_notes_log').insert({

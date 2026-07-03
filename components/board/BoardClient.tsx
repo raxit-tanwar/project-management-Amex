@@ -91,6 +91,14 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
 
     const refresh = useCallback(() => fetchProjects(showArchived), [fetchProjects, showArchived])
 
+    // Patch a single project's tasks in place so its board card (overdue badge, done
+    // count, etc.) reflects task changes made in the detail panel — without a refetch
+    // or closing the panel.
+    const handleTasksChange = useCallback((projectId: string, tasks: NonNullable<Project['tasks']>) => {
+        setProjects(prev => prev.map(p => p.id === projectId ? { ...p, tasks } : p))
+        setSelectedProject(prev => prev && prev.id === projectId ? { ...prev, tasks } : prev)
+    }, [])
+
     // React to sidebar timer click: pendingOpen is set in TimerContext, consumed here
     useEffect(() => {
         if (!pendingOpen) return
@@ -626,6 +634,7 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                     stages={stages}
                     clients={clients}
                     initialTab={autoOpenTab as any}
+                    onTasksChange={handleTasksChange}
                     onClose={() => { setSelectedProject(null); setAutoOpenTab(undefined) }}
                     onUpdated={async () => {
                         await refresh()
