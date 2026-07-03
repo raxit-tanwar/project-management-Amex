@@ -2,12 +2,37 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { formatDuration, isOverdue } from '@/lib/utils'
+import { formatDuration, isOverdue, isTaskOverdue } from '@/lib/utils'
 import { useTimer } from '@/context/TimerContext'
 import { setProjectArchived, updateProjectDetails } from '@/app/(dashboard)/actions'
 
 interface Stage { id: string; name: string; color: string }
-interface Task { id: string; name: string; description?: string; position: number }
+interface Task { id: string; name: string; description?: string; position: number; status: string; due_at?: string | null; due_has_time?: boolean }
+
+const TASK_STATUSES = ['To Do', 'In Progress', 'Done'] as const
+type TaskStatus = typeof TASK_STATUSES[number]
+
+const TASK_STATUS_STYLE: Record<TaskStatus, { bg: string; color: string }> = {
+    'To Do':       { bg: 'var(--surface2)',            color: 'var(--text-muted)' },
+    'In Progress': { bg: 'rgba(99,102,241,0.12)',      color: 'var(--accent-light)' },
+    'Done':        { bg: 'rgba(34,197,94,0.12)',       color: 'var(--success)' },
+}
+
+// Combine an optional date (yyyy-mm-dd) and time (HH:mm) into an ISO timestamp + a flag
+// indicating whether a time-of-day was supplied. Returns null when no date is given.
+function buildDueValue(date: string, time: string): { due_at: string | null; due_has_time: boolean } {
+    if (!date) return { due_at: null, due_has_time: false }
+    if (time) return { due_at: new Date(`${date}T${time}`).toISOString(), due_has_time: true }
+    return { due_at: new Date(`${date}T00:00:00`).toISOString(), due_has_time: false }
+}
+
+function formatDue(due_at?: string | null, hasTime?: boolean): string {
+    if (!due_at) return ''
+    const d = new Date(due_at)
+    const datePart = d.toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' })
+    if (!hasTime) return datePart
+    return `${datePart} · ${d.toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' })}`
+}
 interface NotesLog { id: string; content: string; created_at: string; user_id: string }
 interface ChecklistItem { id: string; text: string; checked: boolean; checked_at?: string }
 interface TimeEntry { id: string; started_at: string; ended_at?: string; duration_seconds?: number; notes?: string | null; tag?: string | null; task_id?: string }
@@ -80,7 +105,14 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
     const [newNote, setNewNote] = useState('')
     const [loading, setLoading] = useState(false)
     const [newTaskName, setNewTaskName] = useState('')
+    const [newTaskDate, setNewTaskDate] = useState('')
+    const [newTaskTime, setNewTaskTime] = useState('')
+    const [taskFilter, setTaskFilter] = useState<'All' | TaskStatus>('All')
     const [newCheckItem, setNewCheckItem] = useState('')
+    // Notes → task composer
+    const [noteIsTask, setNoteIsTask] = useState(false)
+    const [noteTaskDate, setNoteTaskDate] = useState('')
+    const [noteTaskTime, setNoteTaskTime] = useState('')
     const [isEditing, setIsEditing] = useState(false)
     const [editForm, setEditForm] = useState({
         name: project.name,
@@ -141,24 +173,7 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                 supabase.from('project_notes_log').select('*').eq('project_id', project.id).order('created_at', { ascending: false }),
             ])
             
-            let finalTasks = t ?? []
-            if (finalTasks.length === 0) {
-                // If no tasks, load from checklist_templates as default tasks
-                const { data: templates } = await supabase.from('checklist_templates').select('text').eq('user_id', userId).order('position')
-                if (templates && templates.length > 0) {
-                    const { data: createdTasks } = await supabase.from('tasks').insert(
-                        templates.map((tmpl, i) => ({
-                            project_id: project.id,
-                            user_id: userId,
-                            name: tmpl.text,
-                            position: i
-                        }))
-                    ).select()
-                    if (createdTasks) finalTasks = createdTasks
-                }
-            }
-
-            setTasks(finalTasks)
+            setTasks(t ?? [])
             setChecklist(c ?? [])
             setTimeEntries(te ?? [])
             setNotesLog(nl ?? [])
@@ -189,18 +204,23 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
         setTimeEntries(prev => prev.map(e => e.id === entryId ? { ...e, tag: tag || null } : e))
     }
 
-    // Tasks
+    // Tasks (action items)
     const addTask = async () => {
         if (!newTaskName.trim()) return
+        const { due_at, due_has_time } = buildDueValue(newTaskDate, newTaskTime)
         const { data } = await supabase.from('tasks').insert({
-            project_id: project.id, user_id: userId, name: newTaskName.trim(), position: tasks.length
+            project_id: project.id, user_id: userId, name: newTaskName.trim(),
+            status: 'To Do', position: tasks.length, due_at, due_has_time,
         }).select().single()
         if (data) setTasks(prev => [...prev, data])
         setNewTaskName('')
+        setNewTaskDate('')
+        setNewTaskTime('')
     }
 
-    const updateTaskStatus = async (taskId: string, status: any) => {
-        // No-op or keep for internal state if needed, but UI checkmark is gone
+    const updateTaskStatus = async (taskId: string, status: TaskStatus) => {
+        setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status } : t))
+        await supabase.from('tasks').update({ status }).eq('id', taskId)
     }
 
     const deleteTask = async (taskId: string) => {
@@ -232,15 +252,30 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
     const addNote = async () => {
         if (!newNote.trim()) return
         setLoading(true)
-        const { data, error } = await supabase.from('project_notes_log').insert({
+        const content = newNote.trim()
+
+        // When flagged as a task, also create an action item in the Tasks tab.
+        if (noteIsTask) {
+            const { due_at, due_has_time } = buildDueValue(noteTaskDate, noteTaskTime)
+            const { data: task } = await supabase.from('tasks').insert({
+                project_id: project.id, user_id: userId, name: content,
+                status: 'To Do', position: tasks.length, due_at, due_has_time,
+            }).select().single()
+            if (task) setTasks(prev => [...prev, task])
+        }
+
+        const { data } = await supabase.from('project_notes_log').insert({
             project_id: project.id,
             user_id: userId,
-            content: newNote.trim()
+            content
         }).select().single()
-        
+
         if (data) {
             setNotesLog(prev => [data, ...prev])
             setNewNote('')
+            setNoteIsTask(false)
+            setNoteTaskDate('')
+            setNoteTaskTime('')
         }
         setLoading(false)
     }
@@ -267,14 +302,6 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
 
     const checklistDone = checklist.filter(c => c.checked).length
     const totalSeconds = timeEntries.reduce((s, e) => s + (e.duration_seconds || 0), 0)
-
-    const formatEntryTime = (seconds?: number) => {
-        if (!seconds) return '—'
-        const h = Math.floor(seconds / 3600)
-        const m = Math.floor((seconds % 3600) / 60)
-        const s = seconds % 60
-        return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
-    }
 
     return (
         <div style={{
@@ -366,7 +393,7 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                             ☑ <strong style={{ color: 'var(--text-muted)' }}>{checklistDone}/{checklist.length}</strong> checks
                         </span>
                         <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>
-                            ✓ <strong style={{ color: 'var(--text-muted)' }}>{tasks.length}</strong> tasks
+                            ✓ <strong style={{ color: 'var(--text-muted)' }}>{tasks.filter(t => t.status !== 'Done').length}</strong> open
                         </span>
                         {project.due_date && (
                             <span style={{ fontSize: 12, color: isOverdue(project.due_date) ? 'var(--danger)' : 'var(--text-dim)', fontWeight: isOverdue(project.due_date) ? 600 : 400 }}>
@@ -588,79 +615,121 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                         </div>
                     )}
 
-                    {/* TASKS */}
-                    {tab === 'tasks' && (
+                    {/* TASKS — action items (no timer) */}
+                    {tab === 'tasks' && (() => {
+                        // Open items first (by due date, undated last), Done collapsed to the bottom.
+                        const rank = (t: Task) => t.status === 'Done' ? 1 : 0
+                        const dueKey = (t: Task) => t.due_at ? new Date(t.due_at).getTime() : Infinity
+                        const visible = tasks
+                            .filter(t => taskFilter === 'All' || t.status === taskFilter)
+                            .slice()
+                            .sort((a, b) => rank(a) - rank(b) || dueKey(a) - dueKey(b) || a.position - b.position)
+                        const openCount = tasks.filter(t => t.status !== 'Done').length
+
+                        return (
                         <div>
-                            <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+                            {/* Add action item */}
+                            <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
                                 <input
                                     className="input"
-                                    placeholder="Add a task..."
+                                    placeholder="Add an action item…"
                                     value={newTaskName}
                                     onChange={e => setNewTaskName(e.target.value)}
                                     onKeyDown={e => e.key === 'Enter' && addTask()}
+                                    style={{ flex: '1 1 200px', minWidth: 160 }}
+                                />
+                                <input
+                                    className="input"
+                                    type="date"
+                                    value={newTaskDate}
+                                    onChange={e => setNewTaskDate(e.target.value)}
+                                    title="Due date (optional)"
+                                    style={{ flex: '0 0 auto', width: 150 }}
+                                />
+                                <input
+                                    className="input"
+                                    type="time"
+                                    value={newTaskTime}
+                                    onChange={e => setNewTaskTime(e.target.value)}
+                                    disabled={!newTaskDate}
+                                    title={newTaskDate ? 'Due time (optional)' : 'Set a date first'}
+                                    style={{ flex: '0 0 auto', width: 120, opacity: newTaskDate ? 1 : 0.5 }}
                                 />
                                 <button className="btn btn-primary btn-sm" onClick={addTask} style={{ flexShrink: 0 }}>Add</button>
                             </div>
 
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                {tasks.length === 0 && (
+                            {/* Status filter */}
+                            <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+                                {(['All', ...TASK_STATUSES] as const).map(f => (
+                                    <button
+                                        key={f}
+                                        onClick={() => setTaskFilter(f)}
+                                        style={{
+                                            padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                                            cursor: 'pointer', fontFamily: 'inherit',
+                                            border: `1px solid ${taskFilter === f ? 'var(--accent)' : 'var(--border)'}`,
+                                            background: taskFilter === f ? 'var(--accent-dim)' : 'transparent',
+                                            color: taskFilter === f ? 'var(--accent-light)' : 'var(--text-muted)',
+                                        }}
+                                    >{f}{f === 'All' ? ` · ${openCount} open` : ''}</button>
+                                ))}
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                {visible.length === 0 && (
                                     <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-dim)' }}>
-                                        <p style={{ fontSize: 14 }}>No tasks yet. Add your first task above.</p>
+                                        <p style={{ fontSize: 14 }}>
+                                            {tasks.length === 0
+                                                ? 'No action items yet. Add one above, or flag a note as a task in the Notes tab.'
+                                                : 'No action items match this filter.'}
+                                        </p>
                                     </div>
                                 )}
-                                {tasks.map(task => {
-                                    const taskTime = timeEntries
-                                        .filter(te => te.task_id === task.id)
-                                        .reduce((s, e) => s + (e.duration_seconds || 0), 0)
-                                    const isActive = activeTimer?.taskId === task.id
-
+                                {visible.map(task => {
+                                    const done = task.status === 'Done'
+                                    const overdue = !done && isTaskOverdue(task.due_at, task.due_has_time)
+                                    const style = TASK_STATUS_STYLE[(task.status as TaskStatus)] ?? TASK_STATUS_STYLE['To Do']
                                     return (
                                         <div key={task.id} style={{
-                                            display: 'grid', gridTemplateColumns: '1fr auto auto', alignItems: 'center', gap: 14,
-                                            padding: '10px 14px', background: isActive ? 'var(--accent-dim)' : 'var(--surface2)',
-                                            border: `1px solid ${isActive ? 'var(--accent)' : 'var(--border)'}`, borderRadius: 10,
-                                            marginBottom: 8, transition: 'all 0.2s'
+                                            display: 'grid', gridTemplateColumns: 'auto 1fr auto', alignItems: 'center', gap: 12,
+                                            padding: '10px 14px', background: 'var(--surface2)',
+                                            border: `1px solid ${overdue ? 'rgba(239,68,68,0.4)' : 'var(--border)'}`,
+                                            borderRadius: 10, transition: 'all 0.2s', opacity: done ? 0.65 : 1,
                                         }}>
+                                            {/* Status control */}
+                                            <select
+                                                value={task.status}
+                                                onChange={e => updateTaskStatus(task.id, e.target.value as TaskStatus)}
+                                                title="Change status"
+                                                style={{
+                                                    fontSize: 11, fontWeight: 700, padding: '4px 8px', borderRadius: 6,
+                                                    border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                                                    background: style.bg, color: style.color, flexShrink: 0,
+                                                }}
+                                            >
+                                                {TASK_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                                            </select>
+
+                                            {/* Name + due */}
                                             <div style={{ minWidth: 0 }}>
-                                                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{task.name}</div>
-                                                {taskTime > 0 && (
-                                                    <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>
-                                                        {formatDuration(taskTime)} logged
+                                                <div style={{
+                                                    fontSize: 14, fontWeight: 600, color: 'var(--text)',
+                                                    textDecoration: done ? 'line-through' : 'none',
+                                                }}>{task.name}</div>
+                                                {task.due_at && (
+                                                    <div style={{
+                                                        fontSize: 11, marginTop: 2, fontWeight: 600,
+                                                        color: overdue ? 'var(--danger)' : 'var(--text-dim)',
+                                                    }}>
+                                                        📅 {formatDue(task.due_at, task.due_has_time)}{overdue ? ' · overdue' : ''}
                                                     </div>
                                                 )}
                                             </div>
 
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                {taskTime > 0 && (
-                                                    <span style={{ fontSize: 13, fontFamily: 'monospace', fontWeight: 700, color: 'var(--text-muted)' }}>
-                                                        {formatEntryTime(taskTime)}
-                                                    </span>
-                                                )}
-                                                <button
-                                                    title={isActive ? 'Stop timer' : 'Start timer on this task'}
-                                                    onClick={() => isActive
-                                                        ? stopTimer()
-                                                        : startTimer({ projectId: project.id, projectName: project.name, taskId: task.id, taskName: task.name, mode: 'task' })
-                                                    }
-                                                    style={{
-                                                        width: 30, height: 30, borderRadius: 8, border: 'none', cursor: 'pointer',
-                                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                        background: isActive ? 'rgba(239,68,68,0.15)' : 'rgba(99,102,241,0.15)',
-                                                        color: isActive ? 'var(--danger)' : 'var(--accent-light)',
-                                                        transition: 'all 0.15s',
-                                                        flexShrink: 0,
-                                                    }}
-                                                >
-                                                    {isActive
-                                                        ? <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-                                                        : <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
-                                                    }
-                                                </button>
-                                            </div>
-
                                             <button
                                                 className="btn-icon btn-sm"
-                                                style={{ color: 'var(--text-dim)' }}
+                                                style={{ color: 'var(--text-dim)', flexShrink: 0 }}
+                                                title="Delete action item"
                                                 onClick={() => deleteTask(task.id)}
                                             >
                                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12" /></svg>
@@ -670,7 +739,8 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                                 })}
                             </div>
                         </div>
-                    )}
+                        )
+                    })()}
 
                     {/* CHECKLIST */}
                     {tab === 'checklist' && (
@@ -930,22 +1000,61 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                     {/* NOTES */}
                     {tab === 'notes' && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                            <div style={{ display: 'flex', gap: 10 }}>
-                                <textarea
-                                    className="input"
-                                    value={newNote}
-                                    onChange={e => setNewNote(e.target.value)}
-                                    placeholder="Type a new update or log entry..."
-                                    style={{ minHeight: 100, flex: 1, fontFamily: 'inherit', fontSize: 14 }}
-                                />
-                                <button
-                                    className="btn btn-primary"
-                                    onClick={addNote}
-                                    disabled={loading || !newNote.trim()}
-                                    style={{ alignSelf: 'flex-end' }}
-                                >
-                                    Post Log
-                                </button>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                <div style={{ display: 'flex', gap: 10 }}>
+                                    <textarea
+                                        className="input"
+                                        value={newNote}
+                                        onChange={e => setNewNote(e.target.value)}
+                                        placeholder="Type a new update or log entry..."
+                                        style={{ minHeight: 100, flex: 1, fontFamily: 'inherit', fontSize: 14 }}
+                                    />
+                                    <button
+                                        className="btn btn-primary"
+                                        onClick={addNote}
+                                        disabled={loading || !newNote.trim()}
+                                        style={{ alignSelf: 'flex-end' }}
+                                    >
+                                        {noteIsTask ? 'Add Task + Log' : 'Post Log'}
+                                    </button>
+                                </div>
+
+                                {/* Flag this note as a task */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: 'var(--text-muted)', fontWeight: 600 }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={noteIsTask}
+                                            onChange={e => setNoteIsTask(e.target.checked)}
+                                            style={{ cursor: 'pointer' }}
+                                        />
+                                        ✓ Make this a task
+                                    </label>
+                                    {noteIsTask && (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                            <input
+                                                className="input"
+                                                type="date"
+                                                value={noteTaskDate}
+                                                onChange={e => setNoteTaskDate(e.target.value)}
+                                                title="Due date (optional)"
+                                                style={{ width: 150 }}
+                                            />
+                                            <input
+                                                className="input"
+                                                type="time"
+                                                value={noteTaskTime}
+                                                onChange={e => setNoteTaskTime(e.target.value)}
+                                                disabled={!noteTaskDate}
+                                                title={noteTaskDate ? 'Due time (optional)' : 'Set a date first'}
+                                                style={{ width: 120, opacity: noteTaskDate ? 1 : 0.5 }}
+                                            />
+                                            <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+                                                No date? Just an open task.
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
