@@ -8,6 +8,7 @@ import ProjectDetailPanel from './ProjectDetailPanel'
 import { isOverdue } from '@/lib/utils'
 import { useTimer } from '@/context/TimerContext'
 import { updateProjectStage, updateProjectDates } from '@/app/(dashboard)/actions'
+import { Search, Archive, LayoutGrid, List, Plus, ClipboardList, ArrowLeft } from 'lucide-react'
 
 interface Stage { id: string; name: string; color: string; position: number }
 interface Project {
@@ -246,7 +247,7 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                 borderBottom: '1px solid var(--border)',
                 display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0,
                 background: 'var(--surface)',
-                boxShadow: embedded ? 'none' : '0 1px 3px rgba(0,0,0,0.04)'
+                boxShadow: embedded ? 'none' : 'var(--shadow-xs)'
             }}>
                 {!embedded && (
                     <div style={{ marginRight: 4 }}>
@@ -262,9 +263,9 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                         placeholder="Search projects…"
                         value={searchText}
                         onChange={e => setSearchText(e.target.value)}
-                        style={{ maxWidth: embedded ? undefined : 220, paddingLeft: 32, height: 36, fontSize: 13 }}
+                        style={{ maxWidth: embedded ? undefined : 220, paddingLeft: 32, height: 34, fontSize: 13 }}
                     />
-                    <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim)', fontSize: 13 }}>🔍</span>
+                    <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim)' }} />
                 </div>
 
                 {/* Time filters — only shown on active board, not in archived view */}
@@ -277,12 +278,12 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                         ] as const).map(f => (
                             <button key={f.value} onClick={() => setViewFilter(f.value)}
                                 style={{
-                                    padding: '5px 12px', borderRadius: 20, border: '1px solid',
-                                    fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                                    fontFamily: 'Inter, sans-serif', transition: 'all 0.15s',
-                                    background: viewFilter === f.value ? '#6366f1' : 'transparent',
-                                    color: viewFilter === f.value ? 'white' : 'var(--text-muted)',
-                                    borderColor: viewFilter === f.value ? '#6366f1' : 'var(--border)',
+                                    padding: '5px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid',
+                                    fontSize: 12.5, fontWeight: 500, cursor: 'pointer',
+                                    fontFamily: 'inherit', transition: 'all 0.15s',
+                                    background: viewFilter === f.value ? 'var(--accent-dim)' : 'transparent',
+                                    color: viewFilter === f.value ? 'var(--accent)' : 'var(--text-muted)',
+                                    borderColor: viewFilter === f.value ? 'var(--accent)' : 'var(--border)',
                                 }}>
                                 {f.label}
                             </button>
@@ -294,38 +295,42 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                 <button
                     onClick={() => { const next = !showArchived; setShowArchived(next); fetchProjects(next) }}
                     style={{
-                        padding: '5px 12px', borderRadius: 20, border: '1px solid',
-                        fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                        fontFamily: 'Inter, sans-serif', transition: 'all 0.15s',
-                        background: showArchived ? 'rgba(245,158,11,0.12)' : 'transparent',
-                        color: showArchived ? '#d97706' : 'var(--text-muted)',
-                        borderColor: showArchived ? 'rgba(245,158,11,0.4)' : 'var(--border)',
+                        padding: '5px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid',
+                        fontSize: 12.5, fontWeight: 500, cursor: 'pointer',
+                        fontFamily: 'inherit', transition: 'all 0.15s',
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                        background: showArchived ? 'rgba(217,119,6,0.08)' : 'transparent',
+                        color: showArchived ? 'var(--warning)' : 'var(--text-muted)',
+                        borderColor: showArchived ? 'rgba(217,119,6,0.4)' : 'var(--border)',
                     }}
                     title={showArchived ? 'Back to active board' : 'View archived projects'}
                 >
-                    📦 {showArchived ? '← Back to Board' : 'Archived'}
+                    {showArchived ? <ArrowLeft size={13} /> : <Archive size={13} />}
+                    {showArchived ? 'Back to Board' : 'Archived'}
                 </button>
 
                 {/* Board / List toggle — hidden in archived view */}
                 {!showArchived && (
-                    <div style={{ display: 'flex', borderRadius: 8, border: '1px solid var(--border)', overflow: 'hidden', marginLeft: 'auto' }}>
+                    <div style={{ display: 'flex', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', overflow: 'hidden', marginLeft: 'auto', background: 'var(--surface2)', padding: 2, gap: 2 }}>
                         {(['board', 'list'] as const).map(mode => (
                             <button key={mode} onClick={() => setViewMode(mode)}
                                 style={{
-                                    padding: '6px 12px', fontSize: 12, fontWeight: 600,
-                                    background: viewMode === mode ? 'var(--accent-dim)' : 'transparent',
-                                    color: viewMode === mode ? '#6366f1' : 'var(--text-muted)',
-                                    border: 'none', cursor: 'pointer', textTransform: 'capitalize', transition: 'all 0.15s',
-                                    fontFamily: 'Inter, sans-serif'
+                                    padding: '4px 10px', fontSize: 12.5, fontWeight: 500,
+                                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                                    background: viewMode === mode ? 'var(--surface)' : 'transparent',
+                                    color: viewMode === mode ? 'var(--text)' : 'var(--text-muted)',
+                                    boxShadow: viewMode === mode ? 'var(--shadow-xs)' : 'none',
+                                    border: 'none', borderRadius: 4, cursor: 'pointer', textTransform: 'capitalize', transition: 'all 0.15s',
+                                    fontFamily: 'inherit'
                                 }}>
-                                {mode === 'board' ? '⊞' : '☰'} {mode}
+                                {mode === 'board' ? <LayoutGrid size={13} /> : <List size={13} />} {mode}
                             </button>
                         ))}
                     </div>
                 )}
 
                 <button className="btn btn-primary btn-sm" onClick={() => setShowNewProject(true)}>
-                    + New Project
+                    <Plus size={14} /> New Project
                 </button>
             </div>
 
@@ -338,8 +343,8 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                         {filteredProjects.length === 0 && (
                             <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-dim)' }}>
-                                <div style={{ fontSize: 40, marginBottom: 12 }}>📦</div>
-                                <p style={{ fontWeight: 600, marginBottom: 4 }}>No archived projects</p>
+                                <Archive size={36} style={{ marginBottom: 12, opacity: 0.4 }} />
+                                <p style={{ fontWeight: 600, marginBottom: 4, color: 'var(--text-muted)' }}>No archived projects</p>
                                 <p style={{ fontSize: 13 }}>Projects you archive will appear here.</p>
                             </div>
                         )}
@@ -368,8 +373,8 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                                     {project.client?.name && (
                                         <span style={{
                                             fontSize: 11, fontWeight: 600, padding: '1px 7px', borderRadius: 5,
-                                            background: `${project.client_color ?? '#6366f1'}18`,
-                                            color: project.client_color ?? '#6366f1', marginTop: 4, display: 'inline-block'
+                                            background: `${project.client_color ?? '#4f46e5'}18`,
+                                            color: project.client_color ?? '#4f46e5', marginTop: 4, display: 'inline-block'
                                         }}>{project.client.name}</span>
                                     )}
                                 </div>
@@ -379,7 +384,7 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                                         background: `${project.stage.color}18`, color: project.stage.color, flexShrink: 0
                                     }}>{project.stage.name}</span>
                                 )}
-                                <div style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0, fontFamily: 'monospace', fontWeight: 600 }}>
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0, fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
                                     {formatHours(totalTime(project))}
                                 </div>
                             </div>
@@ -407,8 +412,8 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                                 <div style={{
                                     display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '0 4px'
                                 }}>
-                                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: stage.color, boxShadow: `0 0 8px ${stage.color}60` }} />
-                                    <span style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)' }}>
+                                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: stage.color }} />
+                                    <span style={{ fontSize: 11.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>
                                         {stage.name}
                                     </span>
                                     <span style={{
@@ -473,16 +478,16 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                                 <button onClick={() => handleListSort('stage')} style={{
                                     background: 'none', border: 'none', cursor: 'pointer', padding: 0,
                                     fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
-                                    color: sortField === 'stage' ? '#6366f1' : 'var(--text-dim)',
+                                    color: sortField === 'stage' ? '#4f46e5' : 'var(--text-dim)',
                                     display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'inherit'
                                 }}>
                                     Stage <span style={{ fontSize: 10, opacity: sortField === 'stage' ? 1 : 0.4 }}>{sortIcon('stage')}</span>
                                 </button>
                                 <select value={listStageFilter} onChange={e => setListStageFilter(e.target.value)} style={{
                                     fontSize: 10, padding: '2px 4px', borderRadius: 4, fontFamily: 'inherit',
-                                    border: `1px solid ${listStageFilter ? '#6366f1' : 'var(--border)'}`,
-                                    background: listStageFilter ? 'rgba(99,102,241,0.08)' : 'var(--surface2)',
-                                    color: listStageFilter ? '#6366f1' : 'var(--text-dim)', cursor: 'pointer', maxWidth: '100%'
+                                    border: `1px solid ${listStageFilter ? '#4f46e5' : 'var(--border)'}`,
+                                    background: listStageFilter ? 'rgba(79,70,229,0.08)' : 'var(--surface2)',
+                                    color: listStageFilter ? '#4f46e5' : 'var(--text-dim)', cursor: 'pointer', maxWidth: '100%'
                                 }}>
                                     <option value="">All stages</option>
                                     {uniqueStages.map(s => <option key={s} value={s}>{s}</option>)}
@@ -494,16 +499,16 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                                 <button onClick={() => handleListSort('buildType')} style={{
                                     background: 'none', border: 'none', cursor: 'pointer', padding: 0,
                                     fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
-                                    color: sortField === 'buildType' ? '#6366f1' : 'var(--text-dim)',
+                                    color: sortField === 'buildType' ? '#4f46e5' : 'var(--text-dim)',
                                     display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'inherit'
                                 }}>
                                     Build Type <span style={{ fontSize: 10, opacity: sortField === 'buildType' ? 1 : 0.4 }}>{sortIcon('buildType')}</span>
                                 </button>
                                 <select value={listBuildTypeFilter} onChange={e => setListBuildTypeFilter(e.target.value)} style={{
                                     fontSize: 10, padding: '2px 4px', borderRadius: 4, fontFamily: 'inherit',
-                                    border: `1px solid ${listBuildTypeFilter ? '#6366f1' : 'var(--border)'}`,
-                                    background: listBuildTypeFilter ? 'rgba(99,102,241,0.08)' : 'var(--surface2)',
-                                    color: listBuildTypeFilter ? '#6366f1' : 'var(--text-dim)', cursor: 'pointer', maxWidth: '100%'
+                                    border: `1px solid ${listBuildTypeFilter ? '#4f46e5' : 'var(--border)'}`,
+                                    background: listBuildTypeFilter ? 'rgba(79,70,229,0.08)' : 'var(--surface2)',
+                                    color: listBuildTypeFilter ? '#4f46e5' : 'var(--text-dim)', cursor: 'pointer', maxWidth: '100%'
                                 }}>
                                     <option value="">All types</option>
                                     {uniqueBuildTypes.map(t => <option key={t} value={t}>{t}</option>)}
@@ -514,21 +519,21 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                             <button onClick={() => handleListSort('dueDate')} style={{
                                 background: 'none', border: 'none', cursor: 'pointer', padding: 0,
                                 fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
-                                color: sortField === 'dueDate' ? '#6366f1' : 'var(--text-dim)',
+                                color: sortField === 'dueDate' ? '#4f46e5' : 'var(--text-dim)',
                                 display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'inherit', alignSelf: 'start'
                             }}>
                                 Live Date <span style={{ fontSize: 10, opacity: sortField === 'dueDate' ? 1 : 0.4 }}>{sortIcon('dueDate')}</span>
                             </button>
 
                             <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Time</span>
-                            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>✓</span>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Checks</span>
                         </div>
 
                         {listProjects.map(project => {
                             const checklist = project.checklist_items ?? []
                             const done = checklist.filter(c => c.checked).length
                             const overdue = isOverdue(project.due_date)
-                            const stageColor = project.stage?.color ?? '#6366f1'
+                            const stageColor = project.stage?.color ?? '#4f46e5'
                             return (
                                 <div
                                     key={project.id}
@@ -556,8 +561,8 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                                         {project.client?.name && (
                                             <span style={{
                                                 fontSize: 11, fontWeight: 600, padding: '1px 7px', borderRadius: 5, flexShrink: 0,
-                                                background: `${project.client_color ?? '#6366f1'}18`,
-                                                color: project.client_color ?? '#6366f1',
+                                                background: `${project.client_color ?? '#4f46e5'}18`,
+                                                color: project.client_color ?? '#4f46e5',
                                             }}>{project.client.name}</span>
                                         )}
                                     </div>
@@ -578,9 +583,9 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                                         fontWeight: overdue ? 600 : 400
                                     }}>
                                         {project.due_date ? new Date(project.due_date).toLocaleDateString('en', { month: 'short', day: 'numeric' }) : '—'}
-                                        {overdue && ' ⚠'}
+                                        {overdue && ' · overdue'}
                                     </div>
-                                    <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                                    <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
                                         {formatHours(totalTime(project))}
                                     </div>
                                     <div style={{ fontSize: 12, color: done === checklist.length && checklist.length > 0 ? 'var(--success)' : 'var(--text-muted)' }}>
@@ -591,8 +596,8 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                         })}
                         {listProjects.length === 0 && (
                             <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-dim)' }}>
-                                <div style={{ fontSize: 40, marginBottom: 12 }}>📋</div>
-                                <p style={{ fontWeight: 600, marginBottom: 8 }}>
+                                <ClipboardList size={36} style={{ marginBottom: 12, opacity: 0.4 }} />
+                                <p style={{ fontWeight: 600, marginBottom: 8, color: 'var(--text-muted)' }}>
                                     {listStageFilter || listBuildTypeFilter ? 'No matching projects' : 'No projects yet'}
                                 </p>
                                 <p style={{ fontSize: 13 }}>
@@ -664,20 +669,20 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                 }
 
                 return (
-                    <div style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-                        <div style={{ background: 'var(--surface)', borderRadius: 16, border: '1px solid var(--border)', boxShadow: '0 24px 64px rgba(0,0,0,0.28)', width: '100%', maxWidth: 440, padding: 28 }}>
+                    <div style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(16,24,40,0.5)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+                        <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)', width: '100%', maxWidth: 440, padding: 28 }}>
 
                             {/* Step progress bar */}
                             <div style={{ display: 'flex', gap: 5, marginBottom: 22 }}>
                                 {steps.map((s, i) => (
-                                    <div key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: i <= currentStep ? '#6366f1' : 'var(--border)', transition: 'background 0.2s' }} />
+                                    <div key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: i <= currentStep ? 'var(--accent)' : 'var(--border)', transition: 'background 0.2s' }} />
                                 ))}
                             </div>
 
-                            <div style={{ marginBottom: 4, fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                            <div style={{ marginBottom: 4, fontSize: 11, fontWeight: 600, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                                 Step {currentStep + 1} of {total}
                             </div>
-                            <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>
+                            <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>
                                 {step.stageName}
                             </h3>
                             <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20, lineHeight: 1.5 }}>
@@ -704,7 +709,7 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                                     Skip
                                 </button>
                                 <button className="btn btn-primary" style={{ flex: 2 }} onClick={() => advance(true)}>
-                                    {isLast ? '✓ Save & Done' : 'Next →'}
+                                    {isLast ? 'Save & Done' : 'Next'}
                                 </button>
                             </div>
                         </div>

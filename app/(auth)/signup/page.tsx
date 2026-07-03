@@ -27,7 +27,7 @@ export default function SignupPage() {
     return (
         <div style={{ width: '100%', maxWidth: 420 }}>
             <div style={{ marginBottom: 40 }}>
-                <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.03em', marginBottom: 8 }}>
+                <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', marginBottom: 8 }}>
                     Create your account
                 </h1>
                 <p style={{ color: 'var(--text-muted)', fontSize: 15 }}>
@@ -95,7 +95,7 @@ export default function SignupPage() {
                         background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)',
                         color: 'var(--danger)', fontSize: 13, fontWeight: 500
                     }}>
-                        ⚠ {error}
+                        {error}
                     </div>
                 )}
 
@@ -112,7 +112,7 @@ export default function SignupPage() {
                     className="btn btn-primary"
                     style={{ width: '100%', height: 44 }}
                 >
-                    {loading ? <span className="spinner" /> : 'Create account →'}
+                    {loading ? <span className="spinner" /> : 'Create account'}
                 </button>
             </form>
 

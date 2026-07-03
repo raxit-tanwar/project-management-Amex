@@ -6,6 +6,7 @@ import {
     BarChart, Bar, PieChart, Pie, LineChart, Line,
     XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend
 } from 'recharts'
+import { BarChart3, Clock, TrendingUp, Download, type LucideIcon } from 'lucide-react'
 
 interface Project {
     id: string; name: string; build_type?: string; project_type?: string; stage_id?: string; created_at: string; archived: boolean
@@ -15,13 +16,13 @@ interface TimeEntry { id: string; project_id?: string; started_at: string; durat
 
 type ReportTab = 'status' | 'time' | 'stage'
 
-const TABS = [
-    { id: 'status' as ReportTab, label: 'Project Status', icon: '📊' },
-    { id: 'time' as ReportTab, label: 'Time Report', icon: '⏱' },
-    { id: 'stage' as ReportTab, label: 'Stage Movement', icon: '⚡' },
+const TABS: { id: ReportTab; label: string; icon: LucideIcon }[] = [
+    { id: 'status', label: 'Project Status', icon: BarChart3 },
+    { id: 'time', label: 'Time Report', icon: Clock },
+    { id: 'stage', label: 'Stage Movement', icon: TrendingUp },
 ]
 
-const CHART_COLORS = ['#6366f1', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#64748b']
+const CHART_COLORS = ['#4f46e5', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#64748b']
 
 export default function ReportsClient({ projects: allProjects, stages, timeEntries: allTimeEntries }: {
     projects: Project[]; stages: Stage[]; timeEntries: TimeEntry[]
@@ -131,82 +132,78 @@ export default function ReportsClient({ projects: allProjects, stages, timeEntri
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
             {/* Filter Bar */}
             <div style={{
-                padding: '24px 28px', borderBottom: '1px solid var(--border)',
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '16px 28px', borderBottom: '1px solid var(--border)',
+                display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between',
                 background: 'var(--surface)', flexShrink: 0, gap: 24,
-                boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+                boxShadow: 'var(--shadow-xs)'
             }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                            <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Range Preset</span>
-                            <select 
-                                className="input" 
-                                onChange={e => setPreset(e.target.value)}
-                                style={{ height: 36, fontSize: 13, minWidth: 140, background: 'var(--surface2)' }}
-                                defaultValue="custom"
-                            >
-                                <option value="custom">Custom Range</option>
-                                <option value="today">Today</option>
-                                <option value="this-week">This Week</option>
-                                <option value="last-week">Last Week</option>
-                                <option value="this-month">This Month</option>
-                                <option value="last-month">Last Month</option>
-                            </select>
-                        </div>
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Range Preset</span>
+                        <select
+                            className="input"
+                            onChange={e => setPreset(e.target.value)}
+                            style={{ height: 34, fontSize: 13, minWidth: 140 }}
+                            defaultValue="custom"
+                        >
+                            <option value="custom">Custom Range</option>
+                            <option value="today">Today</option>
+                            <option value="this-week">This Week</option>
+                            <option value="last-week">Last Week</option>
+                            <option value="this-month">This Month</option>
+                            <option value="last-month">Last Month</option>
+                        </select>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                            <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>From</span>
-                            <input 
-                                type="date" 
-                                className="input" 
-                                value={startDate} 
-                                onChange={e => setStartDate(e.target.value)} 
-                                style={{ height: 36, fontSize: 13, padding: '0 12px', background: 'var(--surface2)', width: 150 }}
-                            />
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                            <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>To</span>
-                            <input 
-                                type="date" 
-                                className="input" 
-                                value={endDate} 
-                                onChange={e => setEndDate(e.target.value)} 
-                                style={{ height: 36, fontSize: 13, padding: '0 12px', background: 'var(--surface2)', width: 150 }}
-                            />
-                        </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>From</span>
+                        <input
+                            type="date"
+                            className="input"
+                            value={startDate}
+                            onChange={e => setStartDate(e.target.value)}
+                            style={{ height: 34, fontSize: 13, padding: '0 12px', width: 150 }}
+                        />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>To</span>
+                        <input
+                            type="date"
+                            className="input"
+                            value={endDate}
+                            onChange={e => setEndDate(e.target.value)}
+                            style={{ height: 34, fontSize: 13, padding: '0 12px', width: 150 }}
+                        />
                     </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: 12 }}>
-                    <button
-                        className="btn btn-primary"
-                        style={{ height: 40, padding: '0 20px', borderRadius: 10 }}
-                        onClick={() => {
-                            if (tab === 'time') exportCSV(timePerProject as unknown as Record<string, unknown>[], 'time-report.csv')
-                            if (tab === 'status') exportCSV(statusData as unknown as Record<string, unknown>[], 'status-report.csv')
-                        }}
-                    >
-                        ↓ Download Report
-                    </button>
-                </div>
+                <button
+                    className="btn btn-primary"
+                    onClick={() => {
+                        if (tab === 'time') exportCSV(timePerProject as unknown as Record<string, unknown>[], 'time-report.csv')
+                        if (tab === 'status') exportCSV(statusData as unknown as Record<string, unknown>[], 'status-report.csv')
+                    }}
+                >
+                    <Download size={14} /> Download Report
+                </button>
             </div>
 
             {/* Tabs */}
             <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', padding: '0 28px', background: 'var(--surface)', flexShrink: 0 }}>
-                {TABS.map(t => (
-                    <button key={t.id} onClick={() => setTab(t.id)} style={{
-                        padding: '12px 16px', fontSize: 13, fontWeight: tab === t.id ? 700 : 500,
-                        color: tab === t.id ? 'var(--accent-light)' : 'var(--text-muted)',
-                        background: 'none', border: 'none', cursor: 'pointer',
-                        borderBottom: `2px solid ${tab === t.id ? 'var(--accent)' : 'transparent'}`,
-                        transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: 6
-                    }}>
-                        <span>{t.icon}</span>{t.label}
-                    </button>
-                ))}
+                {TABS.map(t => {
+                    const TabIcon = t.icon
+                    return (
+                        <button key={t.id} onClick={() => setTab(t.id)} style={{
+                            padding: '12px 16px', fontSize: 13, fontWeight: tab === t.id ? 600 : 500,
+                            color: tab === t.id ? 'var(--accent)' : 'var(--text-muted)',
+                            background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                            borderBottom: `2px solid ${tab === t.id ? 'var(--accent)' : 'transparent'}`,
+                            transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: 6
+                        }}>
+                            <TabIcon size={14} />{t.label}
+                        </button>
+                    )
+                })}
             </div>
 
             <div style={{ flex: 1, overflow: 'auto', padding: '28px' }}>
@@ -222,7 +219,7 @@ export default function ReportsClient({ projects: allProjects, stages, timeEntri
                                 { label: 'Total time', value: formatDuration(totalSeconds), color: 'var(--warning)' },
                             ].map(stat => (
                                 <div key={stat.label} className="card" style={{ textAlign: 'center', padding: '20px' }}>
-                                    <div style={{ fontSize: 24, fontWeight: 900, color: stat.color, letterSpacing: '-0.02em', fontFamily: typeof stat.value === 'string' ? 'monospace' : 'inherit' }}>{stat.value}</div>
+                                    <div style={{ fontSize: 24, fontWeight: 700, color: stat.color, letterSpacing: '-0.02em', fontFamily: typeof stat.value === 'string' ? 'monospace' : 'inherit' }}>{stat.value}</div>
                                     <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{stat.label}</div>
                                 </div>
                             ))}
@@ -254,7 +251,7 @@ export default function ReportsClient({ projects: allProjects, stages, timeEntri
                                 { label: 'Projects tracked', value: new Set(timeEntries.map(e => e.project_id).filter(Boolean)).size },
                             ].map(stat => (
                                 <div key={stat.label} className="card" style={{ textAlign: 'center', padding: '20px' }}>
-                                    <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--accent-light)', fontFamily: 'monospace' }}>{stat.value}</div>
+                                    <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent-light)', fontFamily: 'var(--font-mono)' }}>{stat.value}</div>
                                     <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{stat.label}</div>
                                 </div>
                             ))}
@@ -267,7 +264,7 @@ export default function ReportsClient({ projects: allProjects, stages, timeEntri
                                     <XAxis dataKey="day" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} interval={1} />
                                     <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
                                     <Tooltip content={customTooltip} />
-                                    <Line type="monotone" dataKey="hours" stroke="#6366f1" strokeWidth={2.5} dot={{ fill: '#6366f1', r: 4 }} name="hours" />
+                                    <Line type="monotone" dataKey="hours" stroke="#4f46e5" strokeWidth={2.5} dot={{ fill: '#4f46e5', r: 4 }} name="hours" />
                                 </LineChart>
                             </ResponsiveContainer>
                         </div>

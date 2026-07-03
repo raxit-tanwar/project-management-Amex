@@ -108,7 +108,7 @@ export default function NewProjectModal({ stages, clients: initialClients, userI
     return (
         <div style={{
             position: 'fixed', inset: 0, zIndex: 1000,
-            background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)',
+            background: 'rgba(16,24,40,0.5)', backdropFilter: 'blur(2px)',
             display: 'flex', alignItems: 'center', justifyContent: 'flex-end'
         }} onClick={e => e.target === e.currentTarget && onClose()}>
             <div className="slide-in" style={{
@@ -122,7 +122,7 @@ export default function NewProjectModal({ stages, clients: initialClients, userI
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0
                 }}>
                     <div>
-                        <h2 style={{ fontSize: 18, fontWeight: 800 }}>New Build Project</h2>
+                        <h2 style={{ fontSize: 18, fontWeight: 700 }}>New Build Project</h2>
                         <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Fill in the project details below</p>
                     </div>
                     <button className="btn-icon" onClick={onClose} aria-label="Close">
@@ -173,13 +173,13 @@ export default function NewProjectModal({ stages, clients: initialClients, userI
                                     key={addon} type="button" onClick={() => toggleAddon(addon)}
                                     style={{
                                         padding: '7px 14px', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 500,
-                                        fontFamily: 'Inter, sans-serif', transition: 'all 0.15s',
+                                        fontFamily: 'inherit', transition: 'all 0.15s',
                                         background: selectedAddons.includes(addon) ? 'var(--accent-dim)' : 'var(--surface2)',
-                                        border: `1.5px solid ${selectedAddons.includes(addon) ? 'rgba(99,102,241,0.5)' : 'var(--border)'}`,
+                                        border: `1.5px solid ${selectedAddons.includes(addon) ? 'rgba(79,70,229,0.5)' : 'var(--border)'}`,
                                         color: selectedAddons.includes(addon) ? 'var(--accent-light)' : 'var(--text-muted)',
                                     }}
                                 >
-                                    {selectedAddons.includes(addon) ? '✓ ' : ''}{addon}
+                                    {addon}
                                 </button>
                             ))}
                         </div>
@@ -191,7 +191,7 @@ export default function NewProjectModal({ stages, clients: initialClients, userI
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                                 <label className="label" style={{ marginBottom: 0 }}>Client <span style={{ color: 'var(--danger)' }}>*</span></label>
                                 <button type="button" onClick={() => setIsAddingClient(!isAddingClient)} style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
-                                    {isAddingClient ? '✕ Cancel' : '+ New Client'}
+                                    {isAddingClient ? 'Cancel' : '+ New Client'}
                                 </button>
                             </div>
                             {isAddingClient ? (
@@ -234,7 +234,7 @@ export default function NewProjectModal({ stages, clients: initialClients, userI
                                 defaultValue={new Date().toISOString().split('T')[0]} />
                             <p style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>Defaults to today — change if needed.</p>
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '8px 14px', background: 'rgba(99,102,241,0.05)', borderRadius: 10, border: '1px dashed rgba(99,102,241,0.2)' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '8px 14px', background: 'rgba(79,70,229,0.05)', borderRadius: 10, border: '1px dashed rgba(79,70,229,0.2)' }}>
                             <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0, lineHeight: 1.6 }}>
                                 <strong style={{ color: 'var(--accent-light)' }}>Other dates are captured automatically</strong> as you move the project through stages on the board:
                             </p>
@@ -255,14 +255,14 @@ export default function NewProjectModal({ stages, clients: initialClients, userI
 
                     {error && (
                         <div style={{ padding: '12px 14px', borderRadius: 10, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: 'var(--danger)', fontSize: 13 }}>
-                            ⚠ {error}
+                            {error}
                         </div>
                     )}
 
                     <div style={{ display: 'flex', gap: 10 }}>
                         <button type="button" className="btn btn-ghost" style={{ flex: 1 }} onClick={onClose}>Cancel</button>
                         <button type="submit" className="btn btn-primary" style={{ flex: 2 }} disabled={loading}>
-                            {loading ? <span className="spinner" /> : 'Create Project →'}
+                            {loading ? <span className="spinner" /> : 'Create Project'}
                         </button>
                     </div>
                 </form>

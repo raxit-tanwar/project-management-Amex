@@ -118,8 +118,8 @@ function ProjectDropdown({
                 style={{
                     display: 'flex', alignItems: 'center', gap: 6,
                     background: 'transparent', border: 'none', cursor: disabled ? 'not-allowed' : 'pointer',
-                    fontSize: 14, fontFamily: 'Inter, sans-serif', padding: '4px 0',
-                    color: selected ? '#6366f1' : 'var(--text-dim)',
+                    fontSize: 14, fontFamily: 'inherit', padding: '4px 0',
+                    color: selected ? 'var(--accent)' : 'var(--text-dim)',
                     fontWeight: selected ? 600 : 400,
                     opacity: disabled ? 0.6 : 1,
                     minWidth: 140, maxWidth: 220, textAlign: 'left',
@@ -138,7 +138,7 @@ function ProjectDropdown({
                 <div style={{
                     position: 'absolute', top: '100%', left: 0, zIndex: 200, marginTop: 8,
                     background: 'var(--surface)', border: '1px solid var(--border)',
-                    borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                    borderRadius: 12, boxShadow: 'var(--shadow-md)',
                     width: 280, overflow: 'hidden'
                 }}>
                     {/* Search input */}
@@ -151,7 +151,7 @@ function ProjectDropdown({
                             placeholder="Search projects..."
                             style={{
                                 flex: 1, border: 'none', outline: 'none', background: 'transparent',
-                                fontSize: 13, color: 'var(--text)', fontFamily: 'Inter, sans-serif'
+                                fontSize: 13, color: 'var(--text)', fontFamily: 'inherit'
                             }}
                         />
                         {search && <button onClick={() => setSearch('')} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-dim)', padding: 0 }}><X size={13} /></button>}
@@ -166,7 +166,7 @@ function ProjectDropdown({
                                 style={{
                                     width: '100%', padding: '9px 14px', display: 'flex', alignItems: 'center', gap: 8,
                                     background: 'transparent', border: 'none', cursor: 'pointer',
-                                    fontSize: 13, color: 'var(--text-muted)', fontFamily: 'Inter, sans-serif', textAlign: 'left'
+                                    fontSize: 13, color: 'var(--text-muted)', fontFamily: 'inherit', textAlign: 'left'
                                 }}
                                 onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--surface2)'}
                                 onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
@@ -189,7 +189,7 @@ function ProjectDropdown({
                                     width: '100%', padding: '9px 14px', display: 'flex', alignItems: 'center', gap: 10,
                                     background: p.id === selectedId ? 'var(--accent-dim)' : 'transparent',
                                     border: 'none', cursor: 'pointer',
-                                    fontSize: 13, fontFamily: 'Inter, sans-serif', textAlign: 'left',
+                                    fontSize: 13, fontFamily: 'inherit', textAlign: 'left',
                                     transition: 'background 0.1s'
                                 }}
                                 onMouseEnter={e => { if (p.id !== selectedId) (e.currentTarget as HTMLElement).style.background = 'var(--surface2)' }}
@@ -199,7 +199,7 @@ function ProjectDropdown({
                                     <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.stage.color, flexShrink: 0 }} />
                                 )}
                                 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                    {p.event_code && <span style={{ color: '#6366f1', fontWeight: 600, marginRight: 4 }}>[{p.event_code}]</span>}
+                                    {p.event_code && <span style={{ color: 'var(--accent)', fontWeight: 600, marginRight: 4 }}>[{p.event_code}]</span>}
                                     <span style={{ color: 'var(--text)', fontWeight: p.id === selectedId ? 600 : 400 }}>{p.name}</span>
                                 </span>
                             </button>
@@ -214,7 +214,7 @@ function ProjectDropdown({
                                 width: '100%', padding: '9px 12px', display: 'flex', alignItems: 'center', gap: 8,
                                 background: 'transparent', border: '1px dashed var(--border2)',
                                 borderRadius: 8, cursor: 'pointer',
-                                fontSize: 13, color: '#6366f1', fontFamily: 'Inter, sans-serif',
+                                fontSize: 13, color: 'var(--accent)', fontFamily: 'inherit',
                                 fontWeight: 600, transition: 'all 0.15s'
                             }}
                             onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--accent-dim)'}
@@ -268,13 +268,13 @@ function QuickCreateModal({
     return (
         <div style={{
             position: 'fixed', inset: 0, zIndex: 500,
-            background: 'rgba(0,0,0,0.4)', display: 'flex',
+            background: 'rgba(16,24,40,0.5)', display: 'flex',
             alignItems: 'center', justifyContent: 'center', padding: 24
         }}>
             <div style={{
-                background: 'var(--surface)', borderRadius: 16,
+                background: 'var(--surface)', borderRadius: 12,
                 border: '1px solid var(--border)',
-                boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
+                boxShadow: 'var(--shadow-lg)',
                 width: '100%', maxWidth: 440, padding: 28
             }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
@@ -292,7 +292,7 @@ function QuickCreateModal({
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                     <div>
                         <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>
-                            Event / Project ID <span style={{ color: '#dc2626' }}>*</span>
+                            Event / Project ID <span style={{ color: 'var(--danger)' }}>*</span>
                         </label>
                         <input
                             className="input"
@@ -305,7 +305,7 @@ function QuickCreateModal({
                     </div>
                     <div>
                         <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>
-                            Project Name <span style={{ color: '#dc2626' }}>*</span>
+                            Project Name <span style={{ color: 'var(--danger)' }}>*</span>
                         </label>
                         <input
                             className="input"
@@ -329,7 +329,7 @@ function QuickCreateModal({
                     </div>
 
                     {error && (
-                        <p style={{ fontSize: 12, color: '#dc2626', margin: 0 }}>{error}</p>
+                        <p style={{ fontSize: 12, color: 'var(--danger)', margin: 0 }}>{error}</p>
                     )}
 
                     <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
@@ -370,18 +370,18 @@ function CompleteProjectModal({
     return (
         <div style={{
             position: 'fixed', inset: 0, zIndex: 500,
-            background: 'rgba(0,0,0,0.4)', display: 'flex',
+            background: 'rgba(16,24,40,0.5)', display: 'flex',
             alignItems: 'center', justifyContent: 'center', padding: 24
         }}>
             <div style={{
-                background: 'var(--surface)', borderRadius: 16,
+                background: 'var(--surface)', borderRadius: 12,
                 border: '1px solid var(--border)',
-                boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
+                boxShadow: 'var(--shadow-lg)',
                 width: '100%', maxWidth: 420, padding: 28
             }}>
                 <div style={{ display: 'flex', gap: 14, marginBottom: 20 }}>
                     <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(245,158,11,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <AlertTriangle size={20} color="#d97706" />
+                        <AlertTriangle size={20} color="var(--warning)" />
                     </div>
                     <div>
                         <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', margin: 0 }}>Complete Project Details</h2>
@@ -393,7 +393,7 @@ function CompleteProjectModal({
                 <div style={{ display: 'flex', gap: 10 }}>
                     <button className="btn btn-ghost" onClick={onClose} style={{ flex: 1 }}>Cancel</button>
                     <button className="btn btn-ghost" onClick={onSkip}
-                        style={{ flex: 1, color: '#d97706', borderColor: 'rgba(245,158,11,0.3)' }}>
+                        style={{ flex: 1, color: 'var(--warning)', borderColor: 'rgba(245,158,11,0.3)' }}>
                         Skip for now
                     </button>
                     <button className="btn btn-primary" onClick={onComplete} style={{ flex: 1 }}>
@@ -575,7 +575,7 @@ export default function TimeTrackerClient({ userId, userDisplayName, initialProj
                 padding: '0 20px',
                 flexShrink: 0,
                 position: 'sticky', top: 0, zIndex: 50,
-                boxShadow: '0 2px 8px rgba(0,0,0,0.07)'
+                boxShadow: 'var(--shadow-xs)'
             }}>
                 <div style={{ display: 'flex', alignItems: 'center', height: 68 }}>
 
@@ -588,7 +588,7 @@ export default function TimeTrackerClient({ userId, userDisplayName, initialProj
                         disabled={timer.isRunning}
                         style={{
                             flex: 1, border: 'none', outline: 'none', background: 'transparent',
-                            fontSize: 15, color: 'var(--text)', fontFamily: 'Inter, sans-serif',
+                            fontSize: 15, color: 'var(--text)', fontFamily: 'inherit',
                             minWidth: 0
                         }}
                     />
@@ -606,8 +606,8 @@ export default function TimeTrackerClient({ userId, userDisplayName, initialProj
                     <div style={{
                         padding: '0 18px', borderLeft: '1px solid var(--border)',
                         borderRight: '1px solid var(--border)',
-                        fontSize: 22, fontWeight: 800, fontFamily: '"Courier New", monospace',
-                        color: timer.isRunning ? '#16a34a' : 'var(--text-dim)',
+                        fontSize: 22, fontWeight: 700, fontFamily: 'var(--font-mono)',
+                        color: timer.isRunning ? 'var(--success)' : 'var(--text-dim)',
                         letterSpacing: '0.04em',
                         width: 118, textAlign: 'center', flexShrink: 0,
                         transition: 'color 0.3s'
@@ -624,9 +624,9 @@ export default function TimeTrackerClient({ userId, userDisplayName, initialProj
                                 title="Stop timer"
                                 style={{
                                     width: 46, height: 46, borderRadius: '50%',
-                                    background: '#dc2626', border: 'none', cursor: 'pointer',
+                                    background: 'var(--danger)', border: 'none', cursor: 'pointer',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    boxShadow: '0 2px 10px rgba(220,38,38,0.35)',
+                                    boxShadow: 'var(--shadow-xs)',
                                     transition: 'all 0.15s', flexShrink: 0
                                 }}
                             >
@@ -639,15 +639,15 @@ export default function TimeTrackerClient({ userId, userDisplayName, initialProj
                                 title={selection.projectId ? 'Start timer' : 'Select a project first'}
                                 style={{
                                     width: 46, height: 46, borderRadius: '50%',
-                                    background: selection.projectId ? '#6366f1' : '#e5e7eb',
+                                    background: selection.projectId ? 'var(--accent)' : 'var(--surface2)',
                                     border: 'none',
                                     cursor: selection.projectId ? 'pointer' : 'not-allowed',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    boxShadow: selection.projectId ? '0 2px 10px rgba(99,102,241,0.4)' : 'none',
+                                    boxShadow: selection.projectId ? 'var(--shadow-sm)' : 'none',
                                     transition: 'all 0.15s', flexShrink: 0
                                 }}
                             >
-                                <Play size={18} color={selection.projectId ? 'white' : '#9ca3af'} fill={selection.projectId ? 'white' : '#9ca3af'} style={{ marginLeft: 2 }} />
+                                <Play size={18} color={selection.projectId ? 'white' : 'var(--text-dim)'} fill={selection.projectId ? 'white' : 'var(--text-dim)'} style={{ marginLeft: 2 }} />
                             </button>
                         )}
                     </div>
@@ -658,7 +658,7 @@ export default function TimeTrackerClient({ userId, userDisplayName, initialProj
             <div style={{ padding: '22px 28px 4px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
                 <div>
                     <h1 style={{ fontSize: 21, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.02em', margin: 0 }}>
-                        Good {new Date().getHours() < 12 ? 'Morning' : new Date().getHours() < 17 ? 'Afternoon' : 'Evening'}, {userDisplayName || 'there'} 👋
+                        Good {new Date().getHours() < 12 ? 'Morning' : new Date().getHours() < 17 ? 'Afternoon' : 'Evening'}, {userDisplayName || 'there'}
                     </h1>
                     <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
                         {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
@@ -666,9 +666,9 @@ export default function TimeTrackerClient({ userId, userDisplayName, initialProj
                 </div>
                 {weekTotal > 0 && (
                     <span style={{
-                        fontSize: 12, fontWeight: 600, color: '#6366f1',
-                        background: 'rgba(99,102,241,0.08)', padding: '5px 14px',
-                        borderRadius: 20, border: '1px solid rgba(99,102,241,0.2)',
+                        fontSize: 12, fontWeight: 600, color: 'var(--accent)',
+                        background: 'rgba(79,70,229,0.08)', padding: '5px 14px',
+                        borderRadius: 20, border: '1px solid rgba(79,70,229,0.2)',
                         flexShrink: 0
                     }}>
                         Week total: {formatDurationHM(weekTotal)}
@@ -682,7 +682,7 @@ export default function TimeTrackerClient({ userId, userDisplayName, initialProj
                     <div style={{ textAlign: 'center', padding: '80px 20px', color: 'var(--text-dim)' }}>
                         <Clock size={40} style={{ margin: '0 auto 16px', opacity: 0.25, display: 'block' }} />
                         <p style={{ fontWeight: 600, fontSize: 15, marginBottom: 8, color: 'var(--text-muted)' }}>No time entries yet</p>
-                        <p style={{ fontSize: 13 }}>Select a project above and press ▶ Start to begin tracking.</p>
+                        <p style={{ fontSize: 13 }}>Select a project above and press Start to begin tracking.</p>
                     </div>
                 ) : (
                     grouped.map(group => (
@@ -738,7 +738,7 @@ export default function TimeTrackerClient({ userId, userDisplayName, initialProj
                                                     style={{
                                                         display: 'flex', alignItems: 'center', gap: 6,
                                                         padding: '4px 10px', borderRadius: 6, border: 'none',
-                                                        background: proj.stage?.color ? `${proj.stage.color}18` : 'rgba(99,102,241,0.1)',
+                                                        background: proj.stage?.color ? `${proj.stage.color}18` : 'rgba(79,70,229,0.1)',
                                                         cursor: 'pointer', flexShrink: 0, transition: 'opacity 0.15s'
                                                     }}
                                                     onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
@@ -747,7 +747,7 @@ export default function TimeTrackerClient({ userId, userDisplayName, initialProj
                                                     {proj.stage?.color && (
                                                         <span style={{ width: 8, height: 8, borderRadius: '50%', background: proj.stage.color, flexShrink: 0, display: 'inline-block' }} />
                                                     )}
-                                                    <span style={{ fontSize: 12, fontWeight: 600, color: proj.stage?.color || '#6366f1', whiteSpace: 'nowrap' }}>
+                                                    <span style={{ fontSize: 12, fontWeight: 600, color: proj.stage?.color || 'var(--accent)', whiteSpace: 'nowrap' }}>
                                                         {proj.event_code || proj.name}
                                                     </span>
                                                 </button>
@@ -765,7 +765,7 @@ export default function TimeTrackerClient({ userId, userDisplayName, initialProj
                                             {/* Duration */}
                                             <div style={{
                                                 fontSize: 15, fontWeight: 700, color: 'var(--text)',
-                                                fontFamily: '"Courier New", monospace',
+                                                fontFamily: 'var(--font-mono)',
                                                 minWidth: 52, textAlign: 'right', flexShrink: 0
                                             }}>
                                                 {entry.duration_seconds ? formatDurationHM(entry.duration_seconds) : '—'}
@@ -810,7 +810,7 @@ export default function TimeTrackerClient({ userId, userDisplayName, initialProj
                                                     <div style={{
                                                         position: 'absolute', right: 0, top: 36, zIndex: 100,
                                                         background: 'var(--surface)', border: '1px solid var(--border)',
-                                                        borderRadius: 10, boxShadow: '0 6px 20px rgba(0,0,0,0.1)',
+                                                        borderRadius: 10, boxShadow: 'var(--shadow-md)',
                                                         minWidth: 160, overflow: 'hidden'
                                                     }}>
                                                         <button
@@ -819,7 +819,7 @@ export default function TimeTrackerClient({ userId, userDisplayName, initialProj
                                                                 width: '100%', padding: '10px 16px',
                                                                 display: 'flex', alignItems: 'center', gap: 9,
                                                                 background: 'transparent', border: 'none', cursor: 'pointer',
-                                                                fontSize: 13, color: 'var(--text)', fontFamily: 'Inter, sans-serif', textAlign: 'left'
+                                                                fontSize: 13, color: 'var(--text)', fontFamily: 'inherit', textAlign: 'left'
                                                             }}
                                                             onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--surface2)'}
                                                             onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
@@ -834,7 +834,7 @@ export default function TimeTrackerClient({ userId, userDisplayName, initialProj
                                                                 width: '100%', padding: '10px 16px',
                                                                 display: 'flex', alignItems: 'center', gap: 9,
                                                                 background: 'transparent', border: 'none', cursor: 'pointer',
-                                                                fontSize: 13, color: '#dc2626', fontFamily: 'Inter, sans-serif', textAlign: 'left'
+                                                                fontSize: 13, color: 'var(--danger)', fontFamily: 'inherit', textAlign: 'left'
                                                             }}
                                                             onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(220,38,38,0.05)'}
                                                             onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}

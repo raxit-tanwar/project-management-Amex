@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { MailCheck } from 'lucide-react'
 import { resetPassword } from '../actions'
 
 export default function ResetPasswordPage() {
@@ -24,7 +25,7 @@ export default function ResetPasswordPage() {
     return (
         <div style={{ width: '100%', maxWidth: 420 }}>
             <div style={{ marginBottom: 40 }}>
-                <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.03em', marginBottom: 8 }}>
+                <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', marginBottom: 8 }}>
                     Reset your password
                 </h1>
                 <p style={{ color: 'var(--text-muted)', fontSize: 15 }}>
@@ -34,12 +35,19 @@ export default function ResetPasswordPage() {
 
             {success ? (
                 <div style={{
-                    padding: '20px', borderRadius: 14,
-                    background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)',
+                    padding: '24px', borderRadius: 'var(--radius-lg)',
+                    background: 'var(--surface)', border: '1px solid var(--border)',
+                    boxShadow: 'var(--shadow-xs)',
                     textAlign: 'center'
                 }}>
-                    <div style={{ fontSize: 32, marginBottom: 12 }}>📬</div>
-                    <div style={{ fontWeight: 700, color: 'var(--success)', marginBottom: 8 }}>Check your inbox!</div>
+                    <div style={{
+                        width: 44, height: 44, borderRadius: '50%', margin: '0 auto 14px',
+                        background: 'rgba(22,163,74,0.1)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    }}>
+                        <MailCheck size={20} color="var(--success)" />
+                    </div>
+                    <div style={{ fontWeight: 600, color: 'var(--text)', marginBottom: 8 }}>Check your inbox</div>
                     <p style={{ fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.6 }}>
                         We&apos;ve sent a password reset link to your email address. Click the link to set a new password.
                     </p>
@@ -68,7 +76,7 @@ export default function ResetPasswordPage() {
                             background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)',
                             color: 'var(--danger)', fontSize: 13, fontWeight: 500
                         }}>
-                            ⚠ {error}
+                            {error}
                         </div>
                     )}
 
@@ -78,7 +86,7 @@ export default function ResetPasswordPage() {
                         className="btn btn-primary"
                         style={{ width: '100%', height: 44 }}
                     >
-                        {loading ? <span className="spinner" /> : 'Send reset link →'}
+                        {loading ? <span className="spinner" /> : 'Send reset link'}
                     </button>
 
                     <Link href="/login" style={{

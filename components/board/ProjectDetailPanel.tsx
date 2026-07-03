@@ -5,6 +5,10 @@ import { createClient } from '@/lib/supabase/client'
 import { formatDuration, isOverdue, isTaskOverdue } from '@/lib/utils'
 import { useTimer } from '@/context/TimerContext'
 import { setProjectArchived, updateProjectDetails } from '@/app/(dashboard)/actions'
+import {
+    Info, CheckSquare, ListChecks, Clock, FileText,
+    Archive, ArchiveRestore, CalendarDays, Pencil, type LucideIcon,
+} from 'lucide-react'
 
 interface Stage { id: string; name: string; color: string }
 interface Task { id: string; name: string; description?: string; position: number; status: string; due_at?: string | null; due_has_time?: boolean }
@@ -14,7 +18,7 @@ type TaskStatus = typeof TASK_STATUSES[number]
 
 const TASK_STATUS_STYLE: Record<TaskStatus, { bg: string; color: string }> = {
     'To Do':       { bg: 'var(--surface2)',            color: 'var(--text-muted)' },
-    'In Progress': { bg: 'rgba(99,102,241,0.12)',      color: 'var(--accent-light)' },
+    'In Progress': { bg: 'rgba(79,70,229,0.12)',      color: 'var(--accent-light)' },
     'Done':        { bg: 'rgba(34,197,94,0.12)',       color: 'var(--success)' },
 }
 
@@ -81,12 +85,12 @@ const PROJECT_TYPES = ['In person Event', 'Virtual Event', 'Hybrid Event']
 
 type TabId = 'overview' | 'tasks' | 'checklist' | 'timelog' | 'notes'
 
-const TABS: { id: TabId; label: string; icon: string }[] = [
-    { id: 'overview', label: 'Overview', icon: '📋' },
-    { id: 'tasks', label: 'Tasks', icon: '✓' },
-    { id: 'checklist', label: 'Checklist', icon: '☑' },
-    { id: 'timelog', label: 'Time Log', icon: '⏱' },
-    { id: 'notes', label: 'Notes', icon: '📝' },
+const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
+    { id: 'overview', label: 'Overview', icon: Info },
+    { id: 'tasks', label: 'Tasks', icon: CheckSquare },
+    { id: 'checklist', label: 'Checklist', icon: ListChecks },
+    { id: 'timelog', label: 'Time Log', icon: Clock },
+    { id: 'notes', label: 'Notes', icon: FileText },
 ]
 
 export default function ProjectDetailPanel({ project, userId, stages, clients, onClose, onUpdated, onArchived, initialTab }: ProjectDetailPanelProps) {
@@ -306,12 +310,13 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
     return (
         <div style={{
             position: 'fixed', inset: 0, zIndex: 900,
-            background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+            background: 'rgba(16,24,40,0.5)', backdropFilter: 'blur(2px)',
             display: 'flex', alignItems: 'stretch', justifyContent: 'flex-end'
         }} onClick={e => e.target === e.currentTarget && onClose()}>
             <div className="slide-in" style={{
                 width: '100%', maxWidth: 860, height: '100vh',
                 background: 'var(--surface)', borderLeft: '1px solid var(--border)',
+                boxShadow: 'var(--shadow-lg)',
                 display: 'flex', flexDirection: 'column', overflow: 'hidden'
             }}>
                 {/* Header */}
@@ -322,13 +327,13 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
                             {/* 1. Event Name — primary, largest */}
-                            <h2 style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-0.025em', lineHeight: 1.15, color: 'var(--text)', marginBottom: 4 }}>
+                            <h2 style={{ fontSize: 24, fontWeight: 700, letterSpacing: '-0.025em', lineHeight: 1.15, color: 'var(--text)', marginBottom: 4 }}>
                                 {project.name}
                             </h2>
 
                             {/* 2. Event Code — secondary, below name */}
                             {project.event_code && (
-                                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-light)', letterSpacing: '0.04em', marginBottom: 10 }}>
+                                <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--accent)', letterSpacing: '0.03em', marginBottom: 10, fontFamily: 'var(--font-mono)' }}>
                                     {project.event_code}
                                 </div>
                             )}
@@ -344,12 +349,12 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                                 {project.client?.name && (
                                     <span style={{
                                         fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 6,
-                                        background: `${project.client_color ?? '#6366f1'}20`,
-                                        color: project.client_color ?? '#6366f1'
+                                        background: `${project.client_color ?? '#4f46e5'}20`,
+                                        color: project.client_color ?? '#4f46e5'
                                     }}>{project.client.name}</span>
                                 )}
                                 {project.build_type && (
-                                    <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 6, background: 'rgba(99,102,241,0.12)', color: 'var(--accent-light)' }}>{project.build_type}</span>
+                                    <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 6, background: 'rgba(79,70,229,0.12)', color: 'var(--accent-light)' }}>{project.build_type}</span>
                                 )}
                                 {(project.build_addons ?? []).map(a => (
                                     <span key={a} style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 6, background: 'rgba(245,158,11,0.1)', color: 'var(--warning)' }}>+{a}</span>
@@ -365,18 +370,18 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                                     onClick={restoreProject}
                                     title="Restore to board"
                                     style={{
-                                        padding: '5px 12px', borderRadius: 8, border: '1px solid rgba(99,102,241,0.35)',
-                                        background: 'rgba(99,102,241,0.08)', color: 'var(--accent-light)',
-                                        fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit'
+                                        padding: '5px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--accent)',
+                                        background: 'var(--accent-dim)', color: 'var(--accent)',
+                                        fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                                        display: 'inline-flex', alignItems: 'center', gap: 6
                                     }}
-                                >↩ Restore to Board</button>
+                                ><ArchiveRestore size={13} /> Restore to Board</button>
                             ) : (
                                 <button
                                     className="btn-icon"
                                     title="Archive project — hides it from the board"
                                     onClick={archiveProject}
-                                    style={{ fontSize: 16 }}
-                                >📦</button>
+                                ><Archive size={15} /></button>
                             )}
                             <button className="btn-icon" onClick={onClose} aria-label="Close">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12" /></svg>
@@ -385,20 +390,20 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                     </div>
 
                     {/* Quick stats */}
-                    <div style={{ display: 'flex', gap: 16 }}>
-                        <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>
-                            ⏱ <strong style={{ color: 'var(--text-muted)' }}>{formatDuration(totalSeconds)}</strong> logged
+                    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--text-dim)' }}>
+                            <Clock size={12} /> <strong style={{ color: 'var(--text-muted)', fontWeight: 600 }}>{formatDuration(totalSeconds)}</strong> logged
                         </span>
-                        <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>
-                            ☑ <strong style={{ color: 'var(--text-muted)' }}>{checklistDone}/{checklist.length}</strong> checks
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--text-dim)' }}>
+                            <ListChecks size={12} /> <strong style={{ color: 'var(--text-muted)', fontWeight: 600 }}>{checklistDone}/{checklist.length}</strong> checks
                         </span>
-                        <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>
-                            ✓ <strong style={{ color: 'var(--text-muted)' }}>{tasks.filter(t => t.status !== 'Done').length}</strong> open
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--text-dim)' }}>
+                            <CheckSquare size={12} /> <strong style={{ color: 'var(--text-muted)', fontWeight: 600 }}>{tasks.filter(t => t.status !== 'Done').length}</strong> open
                         </span>
                         {project.due_date && (
-                            <span style={{ fontSize: 12, color: isOverdue(project.due_date) ? 'var(--danger)' : 'var(--text-dim)', fontWeight: isOverdue(project.due_date) ? 600 : 400 }}>
-                                📅 {new Date(project.due_date).toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' })}
-                                {isOverdue(project.due_date) && ' ⚠'}
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: isOverdue(project.due_date) ? 'var(--danger)' : 'var(--text-dim)', fontWeight: isOverdue(project.due_date) ? 600 : 400 }}>
+                                <CalendarDays size={12} /> {new Date(project.due_date).toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                {isOverdue(project.due_date) && ' · overdue'}
                             </span>
                         )}
                     </div>
@@ -406,21 +411,24 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
 
                 {/* Tabs */}
                 <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', flexShrink: 0, padding: '0 28px' }}>
-                    {TABS.map(t => (
-                        <button
-                            key={t.id}
-                            onClick={() => setTab(t.id)}
-                            style={{
-                                padding: '12px 14px', fontSize: 13, fontWeight: tab === t.id ? 700 : 500,
-                                color: tab === t.id ? 'var(--accent-light)' : 'var(--text-muted)',
-                                background: 'none', border: 'none', cursor: 'pointer',
-                                borderBottom: `2px solid ${tab === t.id ? 'var(--accent)' : 'transparent'}`,
-                                transition: 'all 0.15s ease', display: 'flex', alignItems: 'center', gap: 6
-                            }}
-                        >
-                            <span>{t.icon}</span>{t.label}
-                        </button>
-                    ))}
+                    {TABS.map(t => {
+                        const TabIcon = t.icon
+                        return (
+                            <button
+                                key={t.id}
+                                onClick={() => setTab(t.id)}
+                                style={{
+                                    padding: '12px 14px', fontSize: 13, fontWeight: tab === t.id ? 600 : 500,
+                                    color: tab === t.id ? 'var(--accent)' : 'var(--text-muted)',
+                                    background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                                    borderBottom: `2px solid ${tab === t.id ? 'var(--accent)' : 'transparent'}`,
+                                    transition: 'all 0.15s ease', display: 'flex', alignItems: 'center', gap: 6
+                                }}
+                            >
+                                <TabIcon size={14} />{t.label}
+                            </button>
+                        )
+                    })}
                 </div>
 
                 {/* Tab content */}
@@ -435,11 +443,11 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                                     <>
                                         <button className="btn btn-ghost btn-sm" onClick={() => setIsEditing(false)}>Cancel</button>
                                         <button className="btn btn-primary btn-sm" onClick={saveEdit} disabled={loading}>
-                                            {loading ? <span className="spinner" /> : '✓ Save changes'}
+                                            {loading ? <span className="spinner" /> : 'Save changes'}
                                         </button>
                                     </>
                                 ) : (
-                                    <button className="btn btn-ghost btn-sm" onClick={() => setIsEditing(true)}>✎ Edit</button>
+                                    <button className="btn btn-ghost btn-sm" onClick={() => setIsEditing(true)}><Pencil size={12} /> Edit</button>
                                 )}
                             </div>
 
@@ -490,7 +498,7 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                                                     display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
                                                     padding: '8px 12px', borderRadius: 8,
                                                     background: editForm.build_addons.includes(addon) ? 'var(--accent-dim)' : 'var(--surface2)',
-                                                    border: `1px solid ${editForm.build_addons.includes(addon) ? 'rgba(99,102,241,0.4)' : 'var(--border)'}`,
+                                                    border: `1px solid ${editForm.build_addons.includes(addon) ? 'rgba(79,70,229,0.4)' : 'var(--border)'}`,
                                                     transition: 'all 0.15s'
                                                 }}>
                                                     <div style={{
@@ -570,7 +578,7 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                                         {
                                             l: 'Type of Build', v: project.build_type ? (
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                                    <span style={{ fontSize: 13, fontWeight: 600, padding: '3px 10px', borderRadius: 6, background: 'rgba(99,102,241,0.1)', color: 'var(--accent-light)', display: 'inline-block' }}>{project.build_type}</span>
+                                                    <span style={{ fontSize: 13, fontWeight: 600, padding: '3px 10px', borderRadius: 6, background: 'rgba(79,70,229,0.1)', color: 'var(--accent-light)', display: 'inline-block' }}>{project.build_type}</span>
                                                     {(project.build_addons ?? []).map(a => (
                                                         <span key={a} style={{ fontSize: 12, fontWeight: 600, padding: '2px 8px', borderRadius: 6, background: 'rgba(245,158,11,0.1)', color: 'var(--warning)', display: 'inline-block' }}>+ {a}</span>
                                                     ))}
@@ -585,7 +593,7 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                                         {
                                             l: 'Build Live Date', v: (project.due_date || project.build_live_date) ? (
                                                 <span style={{ color: isOverdue(project.due_date) ? 'var(--danger)' : 'var(--text)' }}>
-                                                    {new Date(project.due_date ?? project.build_live_date!).toLocaleDateString()}{isOverdue(project.due_date) ? ' ⚠' : ''}
+                                                    {new Date(project.due_date ?? project.build_live_date!).toLocaleDateString()}{isOverdue(project.due_date) ? ' · overdue' : ''}
                                                 </span>
                                             ) : '—'
                                         },
@@ -603,7 +611,7 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                                             ) : '—'
                                         },
                                         { l: 'Client', v: project.client?.name || '—' },
-                                        { l: 'Total time logged', v: <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{formatDuration(totalSeconds)}</span> },
+                                        { l: 'Total time logged', v: <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{formatDuration(totalSeconds)}</span> },
                                     ].map(row => (
                                         <div key={row.l} style={{ padding: '12px 14px', background: 'var(--surface2)', borderRadius: 10, border: '1px solid var(--border)' }}>
                                             <div className="label" style={{ marginBottom: 4 }}>{row.l}</div>
@@ -721,7 +729,7 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                                                         fontSize: 11, marginTop: 2, fontWeight: 600,
                                                         color: overdue ? 'var(--danger)' : 'var(--text-dim)',
                                                     }}>
-                                                        📅 {formatDue(task.due_at, task.due_has_time)}{overdue ? ' · overdue' : ''}
+                                                        <CalendarDays size={11} style={{ display: 'inline', verticalAlign: '-1px', marginRight: 4 }} />{formatDue(task.due_at, task.due_has_time)}{overdue ? ' · overdue' : ''}
                                                     </div>
                                                 )}
                                             </div>
@@ -833,13 +841,13 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                                 {/* Status row */}
                                 <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid var(--border)' }}>
                                     {activeTimer?.projectId === project.id && (
-                                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#16a34a', boxShadow: '0 0 0 3px rgba(22,163,74,0.25)', flexShrink: 0 }} />
+                                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--success)', flexShrink: 0 }} />
                                     )}
-                                    <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: activeTimer?.projectId === project.id ? '#16a34a' : 'var(--text-muted)' }}>
+                                    <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: activeTimer?.projectId === project.id ? 'var(--success)' : 'var(--text-muted)' }}>
                                         {activeTimer?.projectId === project.id ? 'Recording' : 'Start a session'}
                                     </span>
                                     {activeTimer?.projectId === project.id && (
-                                        <span style={{ marginLeft: 'auto', fontSize: 22, fontWeight: 900, fontFamily: 'monospace', color: '#16a34a', letterSpacing: '0.04em' }}>
+                                        <span style={{ marginLeft: 'auto', fontSize: 22, fontWeight: 700, fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: 'var(--success)', letterSpacing: '0.02em' }}>
                                             {displayTime}
                                         </span>
                                     )}
@@ -883,9 +891,9 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                                     {activeTimer?.projectId === project.id ? (
                                         <button onClick={handleTimerStop} style={{
                                             width: '100%', padding: '10px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                                            background: '#dc2626', color: 'white', fontSize: 13, fontWeight: 700, fontFamily: 'inherit',
+                                            background: 'var(--danger)', color: 'white', fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
                                             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                                            boxShadow: '0 2px 8px rgba(220,38,38,0.25)',
+                                            boxShadow: 'var(--shadow-xs)',
                                         }}>
                                             <svg width="12" height="12" viewBox="0 0 24 24" fill="white"><rect x="4" y="4" width="16" height="16" rx="2" /></svg>
                                             Stop &amp; Save
@@ -893,9 +901,9 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                                     ) : (
                                         <button onClick={() => startTimer({ projectId: project.id, projectName: project.name, taskName: timerDescription || undefined, mode: 'project' })} style={{
                                             width: '100%', padding: '10px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                                            background: '#6366f1', color: 'white', fontSize: 13, fontWeight: 700, fontFamily: 'inherit',
+                                            background: 'var(--accent)', color: 'white', fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
                                             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                                            boxShadow: '0 2px 8px rgba(99,102,241,0.3)',
+                                            boxShadow: 'var(--shadow-xs)',
                                         }}>
                                             <svg width="12" height="12" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21" /></svg>
                                             Start Timer
@@ -907,11 +915,11 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                             {/* ── Stats ── */}
                             <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
                                 <div style={{ flex: 1, padding: '14px 16px', background: 'var(--surface2)', borderRadius: 10, border: '1px solid var(--border)', textAlign: 'center' }}>
-                                    <div style={{ fontSize: 22, fontWeight: 800, fontFamily: 'monospace', color: 'var(--accent-light)' }}>{formatDuration(totalSeconds)}</div>
+                                    <div style={{ fontSize: 22, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--accent-light)' }}>{formatDuration(totalSeconds)}</div>
                                     <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Total logged</div>
                                 </div>
                                 <div style={{ flex: 1, padding: '14px 16px', background: 'var(--surface2)', borderRadius: 10, border: '1px solid var(--border)', textAlign: 'center' }}>
-                                    <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>{timeEntries.length}</div>
+                                    <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)' }}>{timeEntries.length}</div>
                                     <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Sessions</div>
                                 </div>
                             </div>
@@ -964,7 +972,7 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                                                     )}
                                                 </div>
 
-                                                <div style={{ fontFamily: 'monospace', fontSize: 15, fontWeight: 700, color: 'var(--text)', flexShrink: 0 }}>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 15, fontWeight: 700, color: 'var(--text)', flexShrink: 0 }}>
                                                     {entry.duration_seconds ? formatDuration(entry.duration_seconds) : '—'}
                                                 </div>
                                             </div>
@@ -974,8 +982,8 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                                                 {entry.tag ? (
                                                     <span style={{
                                                         padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
-                                                        background: 'rgba(99,102,241,0.12)', color: 'var(--accent-light)',
-                                                        border: '1px solid rgba(99,102,241,0.2)', flexShrink: 0
+                                                        background: 'rgba(79,70,229,0.12)', color: 'var(--accent-light)',
+                                                        border: '1px solid rgba(79,70,229,0.2)', flexShrink: 0
                                                     }}>{entry.tag}</span>
                                                 ) : null}
                                                 <select
@@ -1028,7 +1036,7 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                                             onChange={e => setNoteIsTask(e.target.checked)}
                                             style={{ cursor: 'pointer' }}
                                         />
-                                        ✓ Make this a task
+                                        Make this a task
                                     </label>
                                     {noteIsTask && (
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
