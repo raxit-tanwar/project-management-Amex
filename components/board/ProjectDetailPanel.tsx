@@ -5,7 +5,10 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { formatDuration, isProjectOverdue, isTaskOverdue } from '@/lib/utils'
 import { useTimer } from '@/context/TimerContext'
-import { setProjectArchived, updateProjectDetails } from '@/app/(dashboard)/actions'
+import {
+    setProjectArchived, updateProjectDetails,
+    createTask, updateTaskStatus as updateTaskStatusApi, deleteTask as deleteTaskApi,
+} from '@/app/(dashboard)/actions'
 import {
     Info, CheckSquare, ListChecks, Clock, FileText,
     Archive, ArchiveRestore, CalendarDays, Pencil, type LucideIcon,
@@ -227,19 +230,19 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
     // pre-update data and re-caches the stale state.
     const invalidateServerData = () => router.refresh()
 
-    // Tasks (action items)
+    // Tasks (action items) — all writes go through server actions (see actions.ts)
+    // so they run server-side and avoid browser CORS/"Failed to fetch" on PATCH/POST/DELETE.
     const addTask = async () => {
         if (!newTaskName.trim()) return
         const { due_at, due_has_time } = buildDueValue(newTaskDate, newTaskTime)
-        const { data, error } = await supabase.from('tasks').insert({
-            project_id: project.id, user_id: userId, name: newTaskName.trim(),
-            status: 'To Do', position: tasks.length, due_at, due_has_time,
-        }).select().single()
+        const { data, error } = await createTask(project.id, {
+            name: newTaskName.trim(), position: tasks.length, due_at, due_has_time,
+        })
         if (error || !data) {
-            alert(`Could not add task: ${error?.message ?? 'unknown error'}`)
+            alert(`Could not add task: ${error ?? 'unknown error'}`)
             return
         }
-        applyTasks([...tasks, data])
+        applyTasks([...tasks, data as unknown as Task])
         setNewTaskName('')
         setNewTaskDate('')
         setNewTaskTime('')
@@ -249,11 +252,11 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
     const updateTaskStatus = async (taskId: string, status: TaskStatus) => {
         const prev = tasks
         applyTasks(tasks.map(t => t.id === taskId ? { ...t, status } : t))
-        const { error } = await supabase.from('tasks').update({ status }).eq('id', taskId)
+        const { error } = await updateTaskStatusApi(taskId, status)
         if (error) {
             // Roll the UI back to the truth so the card/panel never show a phantom status.
             applyTasks(prev)
-            alert(`Could not update task status: ${error.message}`)
+            alert(`Could not update task status: ${error}`)
             return
         }
         invalidateServerData()
@@ -262,10 +265,10 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
     const deleteTask = async (taskId: string) => {
         const prev = tasks
         applyTasks(tasks.filter(t => t.id !== taskId))
-        const { error } = await supabase.from('tasks').delete().eq('id', taskId)
+        const { error } = await deleteTaskApi(taskId)
         if (error) {
             applyTasks(prev)
-            alert(`Could not delete task: ${error.message}`)
+            alert(`Could not delete task: ${error}`)
             return
         }
         invalidateServerData()
@@ -300,12 +303,11 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
         // When flagged as a task, also create an action item in the Tasks tab.
         if (noteIsTask) {
             const { due_at, due_has_time } = buildDueValue(noteTaskDate, noteTaskTime)
-            const { data: task } = await supabase.from('tasks').insert({
-                project_id: project.id, user_id: userId, name: content,
-                status: 'To Do', position: tasks.length, due_at, due_has_time,
-            }).select().single()
-            if (task) {
-                applyTasks([...tasks, task])
+            const { data: task, error } = await createTask(project.id, {
+                name: content, position: tasks.length, due_at, due_has_time,
+            })
+            if (task && !error) {
+                applyTasks([...tasks, task as unknown as Task])
                 invalidateServerData()
             }
         }
