@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import ProjectCard from './ProjectCard'
 import NewProjectModal from './NewProjectModal'
-import ProjectDetailPanel from './ProjectDetailPanel'
+import ProjectDetailPanel, { type TabId } from './ProjectDetailPanel'
 import { isProjectOverdue } from '@/lib/utils'
 import { useTimer } from '@/context/TimerContext'
 import { updateProjectStage, updateProjectDates } from '@/app/(dashboard)/actions'
@@ -36,7 +36,7 @@ interface BoardClientProps {
     openTab?: string        // which tab to open when auto-opening (e.g. 'timelog')
 }
 
-export default function BoardClient({ userId, userDisplayName, initialStages, initialProjects, initialClients, embedded, openProjectId, openTab }: BoardClientProps) {
+export default function BoardClient({ userId, initialStages, initialProjects, initialClients, embedded, openProjectId, openTab }: BoardClientProps) {
     const supabase = createClient()
     const { pendingOpen, setPendingOpen } = useTimer()
     const [stages] = useState(() => [...initialStages].sort((a, b) => a.position - b.position))
@@ -99,23 +99,29 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
         setSelectedProject(prev => prev && prev.id === projectId ? { ...prev, tasks } : prev)
     }, [])
 
-    // React to sidebar timer click: pendingOpen is set in TimerContext, consumed here
+    // React to a sidebar timer click: pendingOpen is a one-shot command published by
+    // TimerContext. This stays an effect because it must clear that external command
+    // (setPendingOpen(null)) once consumed — a side effect that cannot run during render.
     useEffect(() => {
         if (!pendingOpen) return
         const p = projects.find(proj => proj.id === pendingOpen.projectId)
         if (p) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- consuming an external one-shot command from TimerContext
             setSelectedProject(p)
             setAutoOpenTab(pendingOpen.tab)
             setPendingOpen(null)
         }
     }, [pendingOpen]) // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Fallback: also support openProjectId prop (URL-based navigation)
-    useEffect(() => {
-        if (!openProjectId) return
+    // Open the project named by the ?project= URL param (navigation from the dashboard /
+    // overview). Adjusted during render — React's recommended alternative to an effect for
+    // deriving state from a prop — so it runs once per distinct openProjectId.
+    const [handledOpenId, setHandledOpenId] = useState<string | undefined>(undefined)
+    if (openProjectId && openProjectId !== handledOpenId) {
+        setHandledOpenId(openProjectId)
         const p = projects.find(proj => proj.id === openProjectId)
         if (p) { setSelectedProject(p); setAutoOpenTab(openTab) }
-    }, [openProjectId]) // eslint-disable-line react-hooks/exhaustive-deps
+    }
 
     const handleDragStart = (e: React.DragEvent, projectId: string) => {
         setDraggedId(projectId)
@@ -633,7 +639,7 @@ export default function BoardClient({ userId, userDisplayName, initialStages, in
                     userId={userId}
                     stages={stages}
                     clients={clients}
-                    initialTab={autoOpenTab as any}
+                    initialTab={autoOpenTab as TabId | undefined}
                     onTasksChange={handleTasksChange}
                     onClose={() => { setSelectedProject(null); setAutoOpenTab(undefined) }}
                     onUpdated={async () => {

@@ -157,7 +157,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
         setTimerTag('')
         clearStorage()
         setTimer(defaultTimer)
-    }, [timer, supabase]) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [timer, supabase])
 
     const startTimer = useCallback(async (opts?: {
         projectId?: string; projectName?: string; taskId?: string; taskName?: string; mode?: TimerState['mode']

@@ -439,9 +439,11 @@ export default function TimeTrackerClient({ userId, userDisplayName, initialProj
         supabase.from('clients').select('*').eq('user_id', userId).order('name').then(({ data }) => { if (data) setClients(data) })
     }, [supabase, userId])
 
-    // Sync description from running timer
+    // Sync the description field and selection from the running timer. This mirrors the
+    // external timer (from TimerContext) into local UI state, so it stays an effect.
     useEffect(() => {
         if (timer.isRunning) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing local UI state from the external timer store
             setDescription(timer.taskName || '')
             if (timer.projectId) setSelection({ projectId: timer.projectId, taskId: timer.taskId ?? null })
         }

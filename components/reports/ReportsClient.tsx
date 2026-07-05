@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { formatDuration } from '@/lib/utils'
 import {
     BarChart, Bar, PieChart, Pie, LineChart, Line,
-    XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend
+    XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
+    type TooltipContentProps
 } from 'recharts'
 import { BarChart3, Clock, TrendingUp, Download, type LucideIcon } from 'lucide-react'
 
@@ -116,12 +117,12 @@ export default function ReportsClient({ projects: allProjects, stages, timeEntri
         a.click()
     }
 
-    const customTooltip = ({ active, payload, label }: any) => {
+    const customTooltip = ({ active, payload, label }: TooltipContentProps) => {
         if (!active || !payload?.length) return null
         return (
             <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', fontSize: 12 }}>
                 <p style={{ color: 'var(--text-muted)', marginBottom: 4 }}>{label}</p>
-                {payload.map((p: any) => (
+                {payload.map(p => (
                     <p key={p.name} style={{ color: 'var(--text)', fontWeight: 700 }}>{p.value} {p.name === 'hours' ? 'h' : ''}</p>
                 ))}
             </div>
@@ -317,7 +318,7 @@ export default function ReportsClient({ projects: allProjects, stages, timeEntri
 
                         <div className="card" style={{ padding: '24px' }}>
                             <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>Bottleneck indicator</h3>
-                            {stageData.filter(s => s.count > 0).sort((a, b) => b.count - a.count).map((s, i) => (
+                            {stageData.filter(s => s.count > 0).sort((a, b) => b.count - a.count).map(s => (
                                 <div key={s.name} style={{ marginBottom: 12 }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                                         <span style={{ fontSize: 13, fontWeight: 600 }}>{s.name}</span>

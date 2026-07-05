@@ -91,7 +91,7 @@ const PRIMARY_BUILD_TYPES = [
 const BUILD_ADDONS = ['Stand alone Survey', 'On Arrival', 'Exhibitor Management']
 const PROJECT_TYPES = ['In person Event', 'Virtual Event', 'Hybrid Event']
 
-type TabId = 'overview' | 'tasks' | 'checklist' | 'timelog' | 'notes'
+export type TabId = 'overview' | 'tasks' | 'checklist' | 'timelog' | 'notes'
 
 const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
     { id: 'overview', label: 'Overview', icon: Info },
