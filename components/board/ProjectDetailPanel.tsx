@@ -41,7 +41,7 @@ function formatDue(due_at?: string | null, hasTime?: boolean): string {
     if (!hasTime) return datePart
     return `${datePart} · ${d.toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' })}`
 }
-interface NotesLog { id: string; content: string; created_at: string; user_id: string }
+interface NotesLog { id: string; content: string; created_at: string; user_id: string; is_task?: boolean }
 interface ChecklistItem { id: string; text: string; checked: boolean; checked_at?: string }
 interface TimeEntry { id: string; started_at: string; ended_at?: string; duration_seconds?: number; notes?: string | null; tag?: string | null; task_id?: string }
 
@@ -315,7 +315,8 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
         const { data } = await supabase.from('project_notes_log').insert({
             project_id: project.id,
             user_id: userId,
-            content
+            content,
+            is_task: noteIsTask
         }).select().single()
 
         if (data) {
@@ -1122,8 +1123,22 @@ export default function ProjectDetailPanel({ project, userId, stages, clients, o
                                     <div key={note.id} style={{
                                         padding: '16px', background: 'var(--surface2)', borderRadius: 12, border: '1px solid var(--border)'
                                     }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                                            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent-light)', textTransform: 'uppercase' }}>Update</span>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent-light)', textTransform: 'uppercase' }}>Update</span>
+                                                {note.is_task && (
+                                                    <span style={{
+                                                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                                                        fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4,
+                                                        color: 'var(--accent-light)', background: 'color-mix(in srgb, var(--accent) 15%, transparent)',
+                                                        border: '1px solid color-mix(in srgb, var(--accent) 40%, transparent)',
+                                                        borderRadius: 999, padding: '2px 8px', lineHeight: 1.4
+                                                    }}>
+                                                        <CheckSquare size={11} />
+                                                        Task
+                                                    </span>
+                                                )}
+                                            </div>
                                             <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>
                                                 {new Date(note.created_at).toLocaleString('en', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                                             </span>
