@@ -181,6 +181,13 @@ Repurposed as per-project **action items** (to-dos with a status + optional due 
 | project_id | uuid | → projects.id |
 | user_id | uuid | → auth.users |
 | content | text | |
+| is_task | bool | default false — true when posted via "Make this a task"; also creates a matching `tasks` row and renders a "Task" pill in the Notes tab |
+
+---
+
+## Database Migrations
+
+SQL migrations live in `supabase/migrations/` (Supabase CLI format: `<timestamp>_<name>.sql`). Apply them to a project with `supabase db push`, or run the SQL directly against the database. Migrations are additive and idempotent (`IF NOT EXISTS`, guarded backfills) so they're safe to re-run.
 
 ---
 
