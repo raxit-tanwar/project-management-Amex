@@ -1,12 +1,12 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import Link from 'next/link'
 import {
     startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval,
     format, isSameMonth, addMonths, subMonths, isToday,
 } from 'date-fns'
-import { FolderKanban, ListTodo, Clock, CalendarClock, ChevronRight, ChevronLeft, CalendarDays } from 'lucide-react'
+import { FolderKanban, ListTodo, Clock, CalendarClock, ChevronRight, ChevronLeft, CalendarDays, X } from 'lucide-react'
 import { daysRemaining, isTaskOverdue } from '@/lib/utils'
 
 interface Stage { id: string; name: string; color: string; position: number }
@@ -54,6 +54,7 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
     const projects = initialProjects
     const [calendarMonth, setCalendarMonth] = useState(() => new Date())
     const [selectedDay, setSelectedDay] = useState<string | null>(null)
+    const [showTasksModal, setShowTasksModal] = useState(false)
 
     const hour = new Date().getHours()
     const greeting = hour < 12 ? 'Morning' : hour < 17 ? 'Afternoon' : 'Evening'
@@ -90,6 +91,40 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
             .filter(t => t.due_at)
             .sort((a, b) => new Date(a.due_at!).getTime() - new Date(b.due_at!).getTime())
     , [pendingTasks])
+
+    // Pending tasks grouped under their project code, for the "View tasks" modal.
+    // Within each group, tasks are ordered by urgency: overdue first (most overdue
+    // leading), then soonest due, then undated; In Progress edges out To Do on ties.
+    // Groups themselves are ordered by their single most urgent task.
+    const pendingByProject = useMemo(() => {
+        const urgencyOf = (t: FlatTask) => (t.due_at ? new Date(t.due_at).getTime() : Infinity)
+        const statusRank = (t: FlatTask) => (t.status === 'In Progress' ? 0 : 1)
+        const groups = new Map<string, { projectId: string; code: string; projectName: string; tasks: FlatTask[]; urgency: number }>()
+        allTasks.forEach(t => {
+            if (t.status === 'Done') return
+            let g = groups.get(t.projectId)
+            if (!g) {
+                g = { projectId: t.projectId, code: t.eventCode || t.projectName || 'Untitled', projectName: t.projectName || '', tasks: [], urgency: Infinity }
+                groups.set(t.projectId, g)
+            }
+            g.tasks.push(t)
+        })
+        const list = Array.from(groups.values())
+        list.forEach(g => {
+            g.tasks.sort((a, b) => urgencyOf(a) - urgencyOf(b) || statusRank(a) - statusRank(b) || a.name.localeCompare(b.name))
+            g.urgency = g.tasks.length ? urgencyOf(g.tasks[0]) : Infinity
+        })
+        list.sort((a, b) => a.urgency - b.urgency || a.code.localeCompare(b.code))
+        return list
+    }, [allTasks])
+
+    // Close the tasks modal on Escape.
+    useEffect(() => {
+        if (!showTasksModal) return
+        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowTasksModal(false) }
+        window.addEventListener('keydown', onKey)
+        return () => window.removeEventListener('keydown', onKey)
+    }, [showTasksModal])
 
     // Map of yyyy-MM-dd (local) -> dated pending tasks, for calendar dots + day filter.
     const taskDueByDate = useMemo(() => {
@@ -176,9 +211,16 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
                         <ListTodo size={16} color="var(--accent-light)" />
                         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Pending Tasks</span>
-                        <Link href="/board" style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--accent-light)', textDecoration: 'none', fontWeight: 600 }}>
+                        <button
+                            onClick={() => setShowTasksModal(true)}
+                            disabled={pendingTasks.length === 0}
+                            style={{
+                                marginLeft: 'auto', fontSize: 12, color: 'var(--accent-light)', background: 'none', border: 'none',
+                                fontWeight: 600, padding: 0, cursor: pendingTasks.length ? 'pointer' : 'default', opacity: pendingTasks.length ? 1 : 0.5,
+                            }}
+                        >
                             View tasks
-                        </Link>
+                        </button>
                     </div>
                     <div style={{ fontSize: 26, fontWeight: 700, color: 'var(--text)', marginBottom: 10 }}>
                         {pendingTasks.length} <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-muted)' }}>across {projectsWithPending} project{projectsWithPending !== 1 ? 's' : ''}</span>
@@ -358,6 +400,90 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
                     </div>
                 </div>
             </div>
+
+            {/* Pending tasks modal — grouped by project code, ordered by urgency */}
+            {showTasksModal && (
+                <div
+                    onClick={e => { if (e.target === e.currentTarget) setShowTasksModal(false) }}
+                    style={{
+                        position: 'fixed', inset: 0, zIndex: 1000,
+                        background: 'rgba(16,24,40,0.5)', backdropFilter: 'blur(2px)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+                    }}
+                >
+                    <div style={{
+                        background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16,
+                        width: '100%', maxWidth: 640, maxHeight: '82vh', display: 'flex', flexDirection: 'column',
+                        boxShadow: '0 24px 60px rgba(0,0,0,0.35)', overflow: 'hidden',
+                    }}>
+                        {/* Header */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '18px 20px', borderBottom: '1px solid var(--border)' }}>
+                            <ListTodo size={18} color="var(--accent-light)" />
+                            <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>Pending Tasks</span>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>
+                                {pendingTasks.length} across {projectsWithPending} project{projectsWithPending !== 1 ? 's' : ''}
+                            </span>
+                            <button onClick={() => setShowTasksModal(false)} className="btn-icon btn-sm" style={{ marginLeft: 'auto', color: 'var(--text-muted)' }} aria-label="Close">
+                                <X size={18} />
+                            </button>
+                        </div>
+                        {/* Body */}
+                        <div style={{ padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 18 }}>
+                            {pendingByProject.length === 0 && (
+                                <div style={{ textAlign: 'center', color: 'var(--text-dim)', padding: 40 }}>
+                                    <CalendarClock size={28} style={{ marginBottom: 8, opacity: 0.5 }} />
+                                    <p style={{ fontSize: 13 }}>No pending tasks. Nice work!</p>
+                                </div>
+                            )}
+                            {pendingByProject.map(group => (
+                                <div key={group.projectId}>
+                                    {/* Group header — project code */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                                        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-light)', letterSpacing: '0.02em' }}>{group.code}</span>
+                                        {group.projectName && group.code !== group.projectName && (
+                                            <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>{group.projectName}</span>
+                                        )}
+                                        <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 10, background: 'var(--surface2)', color: 'var(--text-muted)' }}>{group.tasks.length}</span>
+                                    </div>
+                                    {/* Task rows — click opens the project detail on the Tasks tab */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                        {group.tasks.map(t => {
+                                            const overdue = isTaskOverdue(t.due_at, t.due_has_time)
+                                            const due = formatTaskDue(t.due_at, t.due_has_time)
+                                            return (
+                                                <Link
+                                                    key={t.id}
+                                                    href={`/board?project=${t.projectId}&tab=tasks`}
+                                                    onClick={() => setShowTasksModal(false)}
+                                                    style={{
+                                                        display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', textDecoration: 'none',
+                                                        borderRadius: 10, border: '1px solid', borderColor: overdue ? 'rgba(220,38,38,0.4)' : 'var(--border)',
+                                                        background: 'var(--surface2)',
+                                                    }}
+                                                >
+                                                    <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{t.name}</span>
+                                                    {due && (
+                                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: overdue ? 'var(--danger)' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                                                            <CalendarDays size={12} />
+                                                            {due}{overdue ? ' · overdue' : ''}
+                                                        </span>
+                                                    )}
+                                                    <span style={{
+                                                        fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6, whiteSpace: 'nowrap',
+                                                        background: t.status === 'In Progress' ? 'rgba(79,70,229,0.12)' : 'var(--surface)',
+                                                        color: t.status === 'In Progress' ? 'var(--accent-light)' : 'var(--text-muted)',
+                                                    }}>{t.status}</span>
+                                                    <ChevronRight size={14} color="var(--text-dim)" />
+                                                </Link>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
