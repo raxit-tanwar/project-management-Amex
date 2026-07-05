@@ -13,19 +13,17 @@ export async function login(formData: FormData) {
             password: formData.get('password') as string,
         }
 
-        console.log('Attempting login for:', data.email)
         const { error } = await supabase.auth.signInWithPassword(data)
 
         if (error) {
-            console.error('Login error details:', error)
             return { error: error.message }
         }
 
         revalidatePath('/', 'layout')
         redirect('/dashboard')
-    } catch (err: any) {
-        if (err.message === 'NEXT_REDIRECT') throw err
-        console.error('Unexpected login error:', err)
+    } catch (err) {
+        // redirect() throws a NEXT_REDIRECT error that must be allowed to propagate.
+        if (err instanceof Error && err.message === 'NEXT_REDIRECT') throw err
         return { error: 'An unexpected error occurred during login. Please try again.' }
     }
 }
@@ -58,8 +56,8 @@ export async function signout() {
         const supabase = await createClient()
         await supabase.auth.signOut()
         redirect('/login')
-    } catch (err: any) {
-        if (err?.digest?.startsWith('NEXT_REDIRECT')) throw err
+    } catch (err) {
+        if (err instanceof Error && err.message === 'NEXT_REDIRECT') throw err
         redirect('/login')
     }
 }
@@ -77,4 +75,29 @@ export async function resetPassword(formData: FormData) {
     }
 
     return { success: true }
+}
+
+// Completes the password-reset flow. The user reaches /update-password already
+// authenticated (the reset link exchanges its code for a session in /auth/callback),
+// so we set the new password on the current session's user.
+export async function updatePassword(formData: FormData) {
+    const supabase = await createClient()
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+        return { error: 'Your reset link is invalid or has expired. Please request a new one.' }
+    }
+
+    const password = formData.get('password') as string
+    if (!password || password.length < 8) {
+        return { error: 'Password must be at least 8 characters.' }
+    }
+
+    const { error } = await supabase.auth.updateUser({ password })
+    if (error) {
+        return { error: error.message }
+    }
+
+    revalidatePath('/', 'layout')
+    redirect('/dashboard')
 }
