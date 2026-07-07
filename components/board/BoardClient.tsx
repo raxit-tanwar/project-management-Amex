@@ -8,7 +8,21 @@ import ProjectDetailPanel, { type TabId } from './ProjectDetailPanel'
 import { isProjectOverdue } from '@/lib/utils'
 import { useTimer } from '@/context/TimerContext'
 import { updateProjectStage, updateProjectDates } from '@/app/(dashboard)/actions'
-import { Search, Archive, LayoutGrid, List, Plus, ClipboardList, ArrowLeft } from 'lucide-react'
+import { Search, Archive, LayoutGrid, List, Plus, ClipboardList, ArrowLeft, CheckSquare, Download } from 'lucide-react'
+
+// Selection checkbox used across board cards, list rows and archived rows.
+function SelectCheck({ checked }: { checked: boolean }) {
+    return (
+        <div style={{
+            width: 20, height: 20, borderRadius: 6, border: '2px solid', flexShrink: 0,
+            borderColor: checked ? 'var(--accent)' : 'var(--border2)',
+            background: checked ? 'var(--accent)' : 'var(--surface)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s',
+        }}>
+            {checked && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4"><path d="M20 6L9 17l-5-5" /></svg>}
+        </div>
+    )
+}
 
 interface Stage { id: string; name: string; color: string; position: number }
 interface Project {
@@ -55,6 +69,48 @@ export default function BoardClient({ userId, initialStages, initialProjects, in
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
     const [listStageFilter, setListStageFilter] = useState('')
     const [listBuildTypeFilter, setListBuildTypeFilter] = useState('')
+
+    // ── Multi-select for Excel export ──
+    const [selectMode, setSelectMode] = useState(false)
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+    const [downloading, setDownloading] = useState(false)
+
+    const toggleSelect = (id: string) => setSelectedIds(prev => {
+        const next = new Set(prev)
+        if (next.has(id)) next.delete(id); else next.add(id)
+        return next
+    })
+    const clearSelection = () => setSelectedIds(new Set())
+    const exitSelect = () => { setSelectMode(false); clearSelection() }
+
+    const downloadExcel = async () => {
+        if (selectedIds.size === 0) return
+        setDownloading(true)
+        try {
+            const res = await fetch('/api/projects/export', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ projectIds: [...selectedIds] }),
+            })
+            if (!res.ok) {
+                const info = await res.json().catch(() => ({}))
+                throw new Error(info.error || `Export failed (${res.status})`)
+            }
+            const blob = await res.blob()
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `FlowDesk_Projects_${new Date().toISOString().slice(0, 10)}.xlsx`
+            document.body.appendChild(a)
+            a.click()
+            a.remove()
+            URL.revokeObjectURL(url)
+        } catch (e) {
+            alert(`Could not download Excel: ${e instanceof Error ? e.message : 'unknown error'}`)
+        } finally {
+            setDownloading(false)
+        }
+    }
 
     // Date capture modal — opened AFTER stage move completes, completely decoupled from drag
     type DateStep = { stageName: string; field: string; label: string; value: string }
@@ -243,6 +299,14 @@ export default function BoardClient({ userId, initialStages, initialProjects, in
         return result
     })()
 
+    // Projects currently shown in the active view — drives "Select all".
+    const visibleProjects = showArchived
+        ? filteredProjects
+        : viewMode === 'list'
+            ? listProjects
+            : filteredProjects
+    const selectAllVisible = () => setSelectedIds(new Set(visibleProjects.map(p => p.id)))
+
     const totalTime = (project: Project) =>
         (project.time_entries ?? []).reduce((s, e) => s + (e.duration_seconds || 0), 0)
 
@@ -343,6 +407,24 @@ export default function BoardClient({ userId, initialStages, initialProjects, in
                     </div>
                 )}
 
+                {/* Select mode toggle — reveals per-project checkboxes for Excel export */}
+                <button
+                    onClick={() => selectMode ? exitSelect() : setSelectMode(true)}
+                    title={selectMode ? 'Exit selection' : 'Select projects to export to Excel'}
+                    style={{
+                        marginLeft: showArchived ? 'auto' : undefined,
+                        padding: '5px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid',
+                        fontSize: 12.5, fontWeight: 500, cursor: 'pointer',
+                        fontFamily: 'inherit', transition: 'all 0.15s',
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                        background: selectMode ? 'var(--accent-dim)' : 'transparent',
+                        color: selectMode ? 'var(--accent)' : 'var(--text-muted)',
+                        borderColor: selectMode ? 'var(--accent)' : 'var(--border)',
+                    }}
+                >
+                    <CheckSquare size={13} /> {selectMode ? 'Cancel' : 'Select'}
+                </button>
+
                 <button className="btn btn-primary btn-sm" onClick={() => setShowNewProject(true)}>
                     <Plus size={14} /> New Project
                 </button>
@@ -362,19 +444,24 @@ export default function BoardClient({ userId, initialStages, initialProjects, in
                                 <p style={{ fontSize: 13 }}>Projects you archive will appear here.</p>
                             </div>
                         )}
-                        {filteredProjects.map(project => (
+                        {filteredProjects.map(project => {
+                            const selected = selectedIds.has(project.id)
+                            return (
                             <div
                                 key={project.id}
-                                onClick={() => { setSelectedProject(project); setAutoOpenTab(undefined) }}
+                                onClick={() => selectMode ? toggleSelect(project.id) : (setSelectedProject(project), setAutoOpenTab(undefined))}
                                 style={{
-                                    background: 'var(--surface2)', border: '1px solid var(--border)',
+                                    background: 'var(--surface2)',
+                                    border: `1px solid ${selected ? 'var(--accent)' : 'var(--border)'}`,
+                                    outline: selected ? '1px solid var(--accent)' : 'none',
                                     borderRadius: 12, padding: '14px 18px', cursor: 'pointer',
                                     display: 'flex', alignItems: 'center', gap: 16,
                                     transition: 'all 0.15s'
                                 }}
-                                onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--border2)'}
-                                onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'}
+                                onMouseEnter={e => { if (!selected) (e.currentTarget as HTMLElement).style.borderColor = 'var(--border2)' }}
+                                onMouseLeave={e => { if (!selected) (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}
                             >
+                                {selectMode && <SelectCheck checked={selected} />}
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)' }}>
                                         {project.name}
@@ -402,7 +489,8 @@ export default function BoardClient({ userId, initialStages, initialProjects, in
                                     {formatHours(totalTime(project))}
                                 </div>
                             </div>
-                        ))}
+                            )
+                        })}
                     </div>
                 </div>
             ) : viewMode === 'board' ? (
@@ -445,23 +533,42 @@ export default function BoardClient({ userId, initialStages, initialProjects, in
                                     transition: 'all 0.2s ease',
                                     display: 'flex', flexDirection: 'column', gap: 10, padding: dragOverStage === stage.id ? 8 : 0
                                 }}>
-                                    {stageProjects.map(project => (
+                                    {stageProjects.map(project => {
+                                        const selected = selectedIds.has(project.id)
+                                        return (
                                         <div
                                             key={project.id}
-                                            draggable
-                                            onDragStart={e => handleDragStart(e, project.id)}
+                                            draggable={!selectMode}
+                                            onDragStart={selectMode ? undefined : e => handleDragStart(e, project.id)}
                                             onDragEnd={() => { setDraggedId(null); setDragOverStage(null) }}
-                                            style={{ opacity: draggedId === project.id ? 0.5 : 1, cursor: 'grab' }}
+                                            style={{
+                                                position: 'relative',
+                                                opacity: draggedId === project.id ? 0.5 : 1,
+                                                cursor: selectMode ? 'pointer' : 'grab',
+                                                borderRadius: 12,
+                                                outline: selected ? '2px solid var(--accent)' : '2px solid transparent',
+                                                outlineOffset: 1, transition: 'outline-color 0.15s',
+                                            }}
                                         >
+                                            {selectMode && (
+                                                <div
+                                                    onClick={e => { e.stopPropagation(); toggleSelect(project.id) }}
+                                                    style={{ position: 'absolute', top: 10, right: 10, zIndex: 2 }}
+                                                >
+                                                    <SelectCheck checked={selected} />
+                                                </div>
+                                            )}
                                             <ProjectCard
                                                 project={project}
                                                 totalSeconds={totalTime(project)}
                                                 formatHours={formatHours}
-                                                onClick={() => { setSelectedProject(project); setAutoOpenTab(undefined) }}
+                                                selectMode={selectMode}
+                                                onClick={() => selectMode ? toggleSelect(project.id) : (setSelectedProject(project), setAutoOpenTab(undefined))}
                                                 onRefresh={refresh}
                                             />
                                         </div>
-                                    ))}
+                                        )
+                                    })}
 
                                     {stageProjects.length === 0 && dragOverStage !== stage.id && (
                                         <div style={{
@@ -548,6 +655,7 @@ export default function BoardClient({ userId, initialStages, initialProjects, in
                             const done = checklist.filter(c => c.checked).length
                             const overdue = isProjectOverdue(project.due_date, project.stage?.name)
                             const stageColor = project.stage?.color ?? '#4f46e5'
+                            const selected = selectedIds.has(project.id)
                             return (
                                 <div
                                     key={project.id}
@@ -556,14 +664,17 @@ export default function BoardClient({ userId, initialStages, initialProjects, in
                                         display: 'grid', gridTemplateColumns: '1fr 140px 160px 100px 80px 70px',
                                         padding: '12px 16px', cursor: 'pointer',
                                         borderLeft: `3px solid ${stageColor}`,
+                                        outline: selected ? '1px solid var(--accent)' : 'none',
+                                        background: selected ? 'var(--accent-dim)' : undefined,
                                         transition: 'all 0.15s ease', alignItems: 'center'
                                     }}
-                                    onClick={() => { setSelectedProject(project); setAutoOpenTab(undefined) }}
-                                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--border2)'}
-                                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'}
+                                    onClick={() => selectMode ? toggleSelect(project.id) : (setSelectedProject(project), setAutoOpenTab(undefined))}
+                                    onMouseEnter={e => { if (!selected) (e.currentTarget as HTMLElement).style.borderColor = 'var(--border2)' }}
+                                    onMouseLeave={e => { if (!selected) (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}
                                 >
                                     {/* Project name + event code + client — all on one line */}
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flexWrap: 'wrap' }}>
+                                        {selectMode && <SelectCheck checked={selected} />}
                                         {project.event_code && (
                                             <span style={{ color: 'var(--accent-light)', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
                                                 {project.event_code}
@@ -620,6 +731,41 @@ export default function BoardClient({ userId, initialStages, initialProjects, in
                             </div>
                         )}
                     </div>
+                </div>
+            )}
+
+            {/* Floating selection bar — appears in select mode with the Download Excel action */}
+            {selectMode && (
+                <div style={{
+                    position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 1000,
+                    background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14,
+                    boxShadow: 'var(--shadow-lg)', padding: '10px 14px',
+                    display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', maxWidth: 'calc(100vw - 32px)',
+                }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+                        {selectedIds.size} selected
+                    </span>
+                    <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={selectAllVisible}
+                        disabled={visibleProjects.length === 0 || selectedIds.size === visibleProjects.length}
+                    >
+                        Select all ({visibleProjects.length})
+                    </button>
+                    <button className="btn btn-ghost btn-sm" onClick={clearSelection} disabled={selectedIds.size === 0}>
+                        Clear
+                    </button>
+                    <div style={{ width: 1, height: 22, background: 'var(--border)' }} />
+                    <button
+                        className="btn btn-primary btn-sm"
+                        onClick={downloadExcel}
+                        disabled={selectedIds.size === 0 || downloading}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                    >
+                        {downloading ? <span className="spinner" /> : <Download size={14} />}
+                        {downloading ? 'Preparing…' : 'Download Excel'}
+                    </button>
+                    <button className="btn btn-ghost btn-sm" onClick={exitSelect}>Done</button>
                 </div>
             )}
 

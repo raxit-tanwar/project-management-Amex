@@ -1,7 +1,7 @@
 'use client'
 
 import { isProjectOverdue, isTaskOverdue } from '@/lib/utils'
-import { User, Clock, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { User, AlertTriangle, CheckCircle2 } from 'lucide-react'
 
 interface ProjectCardProps {
     project: {
@@ -28,9 +28,12 @@ interface ProjectCardProps {
     formatHours: (s: number) => string
     onClick: () => void
     onRefresh: () => void
+    // When the board is in multi-select mode, the top-right corner is reserved for the
+    // selection checkbox, so the overdue dot is suppressed to avoid overlapping it.
+    selectMode?: boolean
 }
 
-export default function ProjectCard({ project, totalSeconds, formatHours, onClick }: ProjectCardProps) {
+export default function ProjectCard({ project, onClick, selectMode }: ProjectCardProps) {
     const checklist = project.checklist_items ?? []
     const checklistDone = checklist.filter(c => c.checked).length
     const tasks = project.tasks ?? []
@@ -70,8 +73,9 @@ export default function ProjectCard({ project, totalSeconds, formatHours, onClic
                 el.style.borderLeftColor = stageColor
             }}
         >
-            {/* Overdue-task indicator — red dot in the top-right corner for quick scanning */}
-            {overdueTasks > 0 && (
+            {/* Overdue-task indicator — red dot in the top-right corner for quick scanning.
+                Hidden in select mode where that corner holds the selection checkbox. */}
+            {!selectMode && overdueTasks > 0 && (
                 <span
                     title={`${overdueTasks} overdue task${overdueTasks !== 1 ? 's' : ''}`}
                     style={{
@@ -197,13 +201,6 @@ export default function ProjectCard({ project, totalSeconds, formatHours, onClic
                     </div>
                 )}
 
-                {/* Time tracked */}
-                {totalSeconds > 0 && (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-dim)', fontWeight: 500, fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', marginLeft: 'auto' }}>
-                        <Clock size={11} /> {formatHours(totalSeconds)}
-                    </span>
-                )}
-
                 {/* Due date */}
                 {project.due_date && (
                     <span style={{
@@ -212,7 +209,7 @@ export default function ProjectCard({ project, totalSeconds, formatHours, onClic
                         background: overdue ? 'rgba(220,38,38,0.06)' : 'transparent',
                         padding: overdue ? '1px 5px' : '0',
                         borderRadius: 4,
-                        marginLeft: totalSeconds > 0 ? 0 : 'auto'
+                        marginLeft: 'auto'
                     }}>
                         {new Date(project.due_date).toLocaleDateString('en', { month: 'short', day: 'numeric' })}
                     </span>
