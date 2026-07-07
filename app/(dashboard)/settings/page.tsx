@@ -2,10 +2,12 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import SettingsClient from './SettingsClient'
 
-export default async function SettingsPage() {
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) redirect('/login')
+
+    const { tab } = await searchParams
 
     const [{ data: stages }, { data: templates }, { data: settings }, { data: clients }] = await Promise.all([
         supabase.from('stages').select('*').eq('user_id', user.id).order('position'),
@@ -21,6 +23,7 @@ export default async function SettingsPage() {
             initialTemplates={templates ?? []}
             initialSettings={settings}
             initialClients={clients ?? []}
+            initialTab={tab}
         />
     )
 }
