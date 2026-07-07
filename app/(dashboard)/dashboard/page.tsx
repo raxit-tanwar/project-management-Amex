@@ -9,11 +9,7 @@ export default async function DashboardPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) redirect('/login')
 
-    // Time entries for the last 8 days — enough to compute "today" and "last 7 days" efficiency
-    const eightDaysAgo = new Date()
-    eightDaysAgo.setDate(eightDaysAgo.getDate() - 8)
-
-    const [{ data: profile }, { data: stages }, { data: projects }, { data: timeEntries }] = await Promise.all([
+    const [{ data: profile }, { data: stages }, { data: projects }, { data: settings }] = await Promise.all([
         supabase.from('profiles').select('display_name').eq('id', user.id).single(),
         supabase.from('stages').select('*').eq('user_id', user.id).order('position'),
         supabase.from('projects').select(`
@@ -22,10 +18,7 @@ export default async function DashboardPage() {
             client:clients(name),
             tasks(id, status, name, due_at, due_has_time)
         `).eq('user_id', user.id).eq('archived', false).order('due_date', { ascending: true, nullsFirst: false }),
-        supabase.from('time_entries')
-            .select('started_at, duration_seconds')
-            .eq('user_id', user.id)
-            .gte('started_at', eightDaysAgo.toISOString()),
+        supabase.from('user_settings').select('build_notes').eq('id', user.id).single(),
     ])
 
     return (
@@ -33,7 +26,7 @@ export default async function DashboardPage() {
             userDisplayName={profile?.display_name || user.email?.split('@')[0]}
             initialStages={stages ?? []}
             initialProjects={(projects ?? []) as unknown as Parameters<typeof OverviewClient>[0]['initialProjects']}
-            timeEntries={timeEntries ?? []}
+            buildNotes={settings?.build_notes ?? ''}
         />
     )
 }

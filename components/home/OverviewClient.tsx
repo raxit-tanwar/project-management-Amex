@@ -6,7 +6,7 @@ import {
     startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval,
     format, isSameMonth, addMonths, subMonths, isToday,
 } from 'date-fns'
-import { FolderKanban, ListTodo, Clock, CalendarClock, ChevronRight, ChevronLeft, CalendarDays, X } from 'lucide-react'
+import { FolderKanban, ListTodo, NotebookPen, CalendarClock, ChevronRight, ChevronLeft, CalendarDays, X } from 'lucide-react'
 import { daysRemaining, isTaskOverdue } from '@/lib/utils'
 
 interface Stage { id: string; name: string; color: string; position: number }
@@ -16,29 +16,17 @@ interface Project {
     stage_id?: string; stage?: Stage | null; client?: { name: string } | null
     tasks?: Task[]
 }
-interface TimeEntry { started_at: string; duration_seconds?: number | null }
 
 interface OverviewClientProps {
     userDisplayName?: string
     initialStages: Stage[]
     initialProjects: Project[]
-    timeEntries: TimeEntry[]
+    buildNotes?: string
 }
 
 const CARD: React.CSSProperties = {
     background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 20,
     boxShadow: 'var(--shadow-xs)',
-}
-
-// Daily work allotment used for efficiency figures (user works ~8h/day).
-const ALLOTTED_DAILY_SECONDS = 8 * 3600
-const WORK_DAYS_PER_WEEK = 5
-
-function formatHm(seconds: number): string {
-    const h = Math.floor(seconds / 3600)
-    const m = Math.floor((seconds % 3600) / 60)
-    if (h === 0) return `${m}m`
-    return m === 0 ? `${h}h` : `${h}h ${m}m`
 }
 
 function formatTaskDue(due_at?: string | null, hasTime?: boolean): string {
@@ -49,7 +37,7 @@ function formatTaskDue(due_at?: string | null, hasTime?: boolean): string {
     return `${datePart} · ${d.toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' })}`
 }
 
-export default function OverviewClient({ userDisplayName, initialStages, initialProjects, timeEntries }: OverviewClientProps) {
+export default function OverviewClient({ userDisplayName, initialStages, initialProjects, buildNotes }: OverviewClientProps) {
     const stages = useMemo(() => [...initialStages].sort((a, b) => a.position - b.position), [initialStages])
     const projects = initialProjects
     const [calendarMonth, setCalendarMonth] = useState(() => new Date())
@@ -140,25 +128,6 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
 
     const scheduleTasks = selectedDay ? (taskDueByDate.get(selectedDay) ?? []) : datedPendingTasks
 
-    // ── Time & efficiency ──
-    const { todaySeconds, weekSeconds } = useMemo(() => {
-        const startOfToday = new Date()
-        startOfToday.setHours(0, 0, 0, 0)
-        const weekStart = new Date(startOfToday)
-        weekStart.setDate(weekStart.getDate() - 6) // rolling 7-day window incl. today
-        let today = 0, week = 0
-        timeEntries.forEach(e => {
-            const secs = e.duration_seconds ?? 0
-            const started = new Date(e.started_at)
-            if (started >= weekStart) week += secs
-            if (started >= startOfToday) today += secs
-        })
-        return { todaySeconds: today, weekSeconds: week }
-    }, [timeEntries])
-
-    const efficiencyToday = todaySeconds / ALLOTTED_DAILY_SECONDS
-    const efficiencyWeek = weekSeconds / (ALLOTTED_DAILY_SECONDS * WORK_DAYS_PER_WEEK)
-
     const monthStart = startOfMonth(calendarMonth)
     const monthEnd = endOfMonth(calendarMonth)
     const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 })
@@ -236,42 +205,13 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
                         )}
                     </div>
                 </div>
-
-                {/* Time & efficiency */}
-                <div style={{ ...CARD, flex: '1 1 280px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-                        <Clock size={16} color="var(--accent-light)" />
-                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Time &amp; Efficiency</span>
-                        <Link href="/reports" style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--accent-light)', textDecoration: 'none', fontWeight: 600 }}>
-                            View reports
-                        </Link>
-                    </div>
-                    <div style={{ fontSize: 26, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>
-                        {formatHm(todaySeconds)} <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-muted)' }}>logged today</span>
-                    </div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: efficiencyToday >= 1 ? 'var(--success)' : 'var(--text-muted)', marginBottom: 10 }}>
-                        {Math.round(efficiencyToday * 100)}% of 8h target
-                    </div>
-                    <div style={{ height: 8, borderRadius: 4, background: 'var(--border)', overflow: 'hidden', marginBottom: 10 }}>
-                        <div style={{
-                            height: '100%', borderRadius: 4,
-                            width: `${Math.min(100, efficiencyToday * 100)}%`,
-                            background: efficiencyToday >= 1 ? 'var(--success)' : 'var(--accent)',
-                        }} />
-                    </div>
-                    <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 6, background: 'var(--surface2)', color: 'var(--text-muted)' }}>
-                        Last 7 days · {formatHm(weekSeconds)} · {Math.round(efficiencyWeek * 100)}%
-                    </span>
-                </div>
             </div>
 
             {/* Quick stat chips */}
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                 {[
-                    { label: 'Pending Tasks', count: pendingTasks.length, color: '#4f46e5', bg: 'rgba(79,70,229,0.1)' },
                     { label: 'Overdue Tasks', count: overdueTasks.length, color: '#dc2626', bg: 'rgba(220,38,38,0.1)' },
                     { label: 'Tasks Due This Week', count: tasksDueThisWeek.length, color: '#d97706', bg: 'rgba(217,119,6,0.1)' },
-                    { label: 'Active Projects', count: totalActive, color: '#16a34a', bg: 'rgba(22,163,74,0.1)' },
                 ].map(chip => (
                     <Link key={chip.label} href="/board" style={{
                         ...CARD, padding: '14px 18px', flex: '1 1 200px', textDecoration: 'none',
@@ -286,6 +226,29 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
                         <ChevronRight size={16} color="var(--text-dim)" style={{ marginLeft: 'auto' }} />
                     </Link>
                 ))}
+            </div>
+
+            {/* Build Notes — read-only; edited from Settings > Build Notes */}
+            <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                    <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', margin: 0 }}>Build Notes</h2>
+                    <Link href="/settings?tab=buildnotes" style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--accent-light)', textDecoration: 'none', fontWeight: 600 }}>
+                        Edit in Settings
+                    </Link>
+                </div>
+                <div style={CARD}>
+                    {buildNotes && buildNotes.trim() && buildNotes !== '<p></p>' ? (
+                        <div className="rich-text-content" dangerouslySetInnerHTML={{ __html: buildNotes }} />
+                    ) : (
+                        <div style={{ textAlign: 'center', padding: '24px 20px', color: 'var(--text-dim)' }}>
+                            <NotebookPen size={24} style={{ marginBottom: 8, opacity: 0.5 }} />
+                            <p style={{ fontSize: 13 }}>
+                                No build notes yet. Add important points to remember in{' '}
+                                <Link href="/settings?tab=buildnotes" style={{ color: 'var(--accent-light)', fontWeight: 600 }}>Settings</Link>.
+                            </p>
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Schedule: calendar + action items */}

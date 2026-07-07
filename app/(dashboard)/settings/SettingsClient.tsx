@@ -3,31 +3,39 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import RichTextEditor from '@/components/ui/RichTextEditor'
 import {
-    Layers, Users, ListChecks, Timer, Database,
+    Layers, Users, ListChecks, Timer, Database, NotebookPen,
     Check, Lock, GripVertical, Download, AlertTriangle, type LucideIcon,
 } from 'lucide-react'
 
 interface Stage { id: string; name: string; color: string; position: number }
 interface Template { id: string; text: string; position: number }
 interface Client { id: string; name: string }
-interface Settings { work_start_time?: string; work_end_time?: string; idle_alert_minutes?: number; long_session_alert_minutes?: number }
+interface Settings {
+    work_start_time?: string; work_end_time?: string; idle_alert_minutes?: number; long_session_alert_minutes?: number
+    build_notes?: string | null
+}
 
 const STAGE_COLORS = ['#64748b', '#4f46e5', '#f59e0b', '#ef4444', '#22c55e', '#8b5cf6', '#06b6d4', '#ec4899']
 const LOCKED_STAGE_NAME = 'Project Assigned'
 
-type SettingsTab = 'stages' | 'clients' | 'checklist' | 'timer' | 'data'
+type SettingsTab = 'stages' | 'clients' | 'checklist' | 'timer' | 'buildnotes' | 'data'
+const SETTINGS_TABS: SettingsTab[] = ['stages', 'clients', 'checklist', 'timer', 'buildnotes', 'data']
 
-export default function SettingsClient({ userId, initialStages, initialTemplates, initialSettings, initialClients }: {
+export default function SettingsClient({ userId, initialStages, initialTemplates, initialSettings, initialClients, initialTab }: {
     userId: string
     initialStages: Stage[]
     initialTemplates: Template[]
     initialSettings?: Settings | null
     initialClients: Client[]
+    initialTab?: string
 }) {
     const supabase = createClient()
     const router = useRouter()
-    const [tab, setTab] = useState<SettingsTab>('stages')
+    const [tab, setTab] = useState<SettingsTab>(
+        SETTINGS_TABS.includes(initialTab as SettingsTab) ? (initialTab as SettingsTab) : 'stages'
+    )
     const [stages, setStages] = useState(initialStages)
     const [templates, setTemplates] = useState(initialTemplates)
     const [clients, setClients] = useState(initialClients)
@@ -182,6 +190,7 @@ export default function SettingsClient({ userId, initialStages, initialTemplates
         { id: 'clients', label: 'Clients', icon: Users },
         { id: 'checklist', label: 'Checklist Template', icon: ListChecks },
         { id: 'timer', label: 'Timer Preferences', icon: Timer },
+        { id: 'buildnotes', label: 'Build Notes', icon: NotebookPen },
         { id: 'data', label: 'Data', icon: Database },
     ]
 
@@ -479,6 +488,23 @@ export default function SettingsClient({ userId, initialStages, initialTemplates
                         </div>
                         <button className="btn btn-primary" style={{ alignSelf: 'flex-start' }} onClick={saveSettings}>
                             Save preferences
+                        </button>
+                    </div>
+                )}
+
+                {/* BUILD NOTES */}
+                {tab === 'buildnotes' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                        <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6, margin: 0 }}>
+                            Important points to keep in mind before or during a build. This shows up as a read-only panel on your Overview page.
+                        </p>
+                        <RichTextEditor
+                            content={settings.build_notes ?? ''}
+                            onChange={html => setSettings(prev => ({ ...prev, build_notes: html }))}
+                            placeholder="e.g. Always confirm GDPR banner copy with the client before going live…"
+                        />
+                        <button className="btn btn-primary" style={{ alignSelf: 'flex-start' }} onClick={saveSettings}>
+                            Save build notes
                         </button>
                     </div>
                 )}

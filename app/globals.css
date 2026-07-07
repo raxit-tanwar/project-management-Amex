@@ -431,3 +431,87 @@ select.input {
   transform: rotate(-90deg);
   transform-origin: 50% 50%;
 }
+
+/* ─── Rich text (Tiptap) ─────────────────────────────────────────────────── */
+/* Shared by the Settings "Build Notes" editor and its read-only render on
+   Overview — the global `* { margin/padding: 0 }` reset above strips list
+   indentation and paragraph spacing, so both need it restored explicitly. */
+.rich-text-content {
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--text);
+}
+
+.rich-text-content p {
+  margin: 0 0 10px;
+}
+
+.rich-text-content p:last-child {
+  margin-bottom: 0;
+}
+
+.rich-text-content h2 {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 16px 0 8px;
+  letter-spacing: -0.01em;
+}
+
+.rich-text-content h2:first-child {
+  margin-top: 0;
+}
+
+.rich-text-content ul,
+.rich-text-content ol {
+  margin: 0 0 10px;
+  padding-left: 22px;
+}
+
+.rich-text-content ul {
+  list-style: disc;
+}
+
+.rich-text-content ol {
+  list-style: decimal;
+}
+
+.rich-text-content li {
+  margin-bottom: 4px;
+}
+
+.rich-text-content li p {
+  margin: 0;
+}
+
+.rich-text-content blockquote {
+  margin: 0 0 10px;
+  padding-left: 12px;
+  border-left: 3px solid var(--accent);
+  color: var(--text-muted);
+}
+
+.rich-text-content strong {
+  font-weight: 700;
+}
+
+.rich-text-content em {
+  font-style: italic;
+}
+
+.rich-text-content s {
+  text-decoration: line-through;
+}
+
+.rich-text-editable {
+  padding: 12px 14px;
+  min-height: 160px;
+  outline: none;
+}
+
+.rich-text-editable p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: var(--text-dim);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
