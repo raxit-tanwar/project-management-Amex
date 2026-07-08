@@ -8,6 +8,7 @@ import {
 } from 'date-fns'
 import { FolderKanban, ListTodo, NotebookPen, CalendarClock, ChevronRight, ChevronLeft, CalendarDays, X } from 'lucide-react'
 import { daysRemaining, isTaskOverdue } from '@/lib/utils'
+import { BUILD_NOTE_CATEGORIES, type BuildNoteCategoryId, type BuildNotesData, hasNoteContent, normalizeBuildNotes } from '@/lib/buildNotes'
 
 interface Stage { id: string; name: string; color: string; position: number }
 interface Task { id: string; status: string; name: string; due_at?: string | null; due_has_time?: boolean }
@@ -21,7 +22,7 @@ interface OverviewClientProps {
     userDisplayName?: string
     initialStages: Stage[]
     initialProjects: Project[]
-    buildNotes?: string
+    buildNotes?: BuildNotesData | string | null
 }
 
 const CARD: React.CSSProperties = {
@@ -43,6 +44,9 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
     const [calendarMonth, setCalendarMonth] = useState(() => new Date())
     const [selectedDay, setSelectedDay] = useState<string | null>(null)
     const [showTasksModal, setShowTasksModal] = useState(false)
+    const [buildCat, setBuildCat] = useState<BuildNoteCategoryId>('general')
+    const notes = useMemo(() => normalizeBuildNotes(buildNotes), [buildNotes])
+    const activeCategoryLabel = BUILD_NOTE_CATEGORIES.find(c => c.id === buildCat)?.label ?? ''
 
     const hour = new Date().getHours()
     const greeting = hour < 12 ? 'Morning' : hour < 17 ? 'Afternoon' : 'Evening'
@@ -146,6 +150,12 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
                 </p>
             </div>
 
+            {/* Main two-column layout: left = summary + schedule, right = Build Notes panel */}
+            <div style={{ display: 'flex', gap: 20, alignItems: 'stretch', flexWrap: 'wrap' }}>
+
+              {/* ── LEFT column ── */}
+              <div style={{ flex: '1 1 560px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 20 }}>
+
             {/* Stat cards */}
             <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
                 {/* Project stages */}
@@ -207,14 +217,14 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
                 </div>
             </div>
 
-            {/* Quick stat chips */}
-            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            {/* Quick stat chips — stacked full-width in the left column */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {[
                     { label: 'Overdue Tasks', count: overdueTasks.length, color: '#dc2626', bg: 'rgba(220,38,38,0.1)' },
                     { label: 'Tasks Due This Week', count: tasksDueThisWeek.length, color: '#d97706', bg: 'rgba(217,119,6,0.1)' },
                 ].map(chip => (
                     <Link key={chip.label} href="/board" style={{
-                        ...CARD, padding: '14px 18px', flex: '1 1 200px', textDecoration: 'none',
+                        ...CARD, padding: '14px 18px', textDecoration: 'none',
                         display: 'flex', alignItems: 'center', gap: 12,
                     }}>
                         <div style={{
@@ -226,29 +236,6 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
                         <ChevronRight size={16} color="var(--text-dim)" style={{ marginLeft: 'auto' }} />
                     </Link>
                 ))}
-            </div>
-
-            {/* Build Notes — read-only; edited from Settings > Build Notes */}
-            <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                    <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', margin: 0 }}>Build Notes</h2>
-                    <Link href="/settings?tab=buildnotes" style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--accent-light)', textDecoration: 'none', fontWeight: 600 }}>
-                        Edit in Settings
-                    </Link>
-                </div>
-                <div style={CARD}>
-                    {buildNotes && buildNotes.trim() && buildNotes !== '<p></p>' ? (
-                        <div className="rich-text-content" dangerouslySetInnerHTML={{ __html: buildNotes }} />
-                    ) : (
-                        <div style={{ textAlign: 'center', padding: '24px 20px', color: 'var(--text-dim)' }}>
-                            <NotebookPen size={24} style={{ marginBottom: 8, opacity: 0.5 }} />
-                            <p style={{ fontSize: 13 }}>
-                                No build notes yet. Add important points to remember in{' '}
-                                <Link href="/settings?tab=buildnotes" style={{ color: 'var(--accent-light)', fontWeight: 600 }}>Settings</Link>.
-                            </p>
-                        </div>
-                    )}
-                </div>
             </div>
 
             {/* Schedule: calendar + action items */}
@@ -317,8 +304,11 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
                         )}
                     </div>
 
-                    {/* Action items — pending tasks with a due date (overdue + upcoming) */}
-                    <div style={{ flex: '1 1 400px', minWidth: 280 }}>
+                    {/* Action items — sits beside the calendar, filling the space up to the
+                        Build Notes panel. Small flex-basis so it stays on the calendar's row
+                        (instead of wrapping to a full-width row below) yet still wraps under
+                        the calendar on narrow/mobile widths. */}
+                    <div style={{ flex: '1 1 240px', minWidth: 240 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                             <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
                                 {selectedDay ? `Due ${format(new Date(selectedDay), 'MMM d')}` : 'Action Items'}
@@ -363,6 +353,54 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
                     </div>
                 </div>
             </div>
+
+              </div>{/* ── END LEFT column ── */}
+
+              {/* ── RIGHT column — Build Notes (full height) ── */}
+              <div style={{ flex: '1 1 380px', minWidth: 320, display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                    <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', margin: 0 }}>Build Notes</h2>
+                    <Link href="/settings?tab=buildnotes" style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--accent-light)', textDecoration: 'none', fontWeight: 600 }}>
+                        Edit
+                    </Link>
+                </div>
+
+                {/* Category tabs */}
+                <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)', marginBottom: 16 }}>
+                    {BUILD_NOTE_CATEGORIES.map(cat => (
+                        <button
+                            key={cat.id}
+                            onClick={() => setBuildCat(cat.id)}
+                            style={{
+                                padding: '8px 12px', fontSize: 12.5, fontWeight: buildCat === cat.id ? 600 : 500,
+                                color: buildCat === cat.id ? 'var(--accent)' : 'var(--text-muted)',
+                                background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                                borderBottom: `2px solid ${buildCat === cat.id ? 'var(--accent)' : 'transparent'}`,
+                                marginBottom: -1, transition: 'all 0.15s', whiteSpace: 'nowrap',
+                            }}
+                        >
+                            {cat.label}
+                        </button>
+                    ))}
+                </div>
+
+                {/* Content card — fills the remaining height */}
+                <div style={{ ...CARD, flex: 1, minHeight: 420, overflowY: 'auto' }}>
+                    {hasNoteContent(notes[buildCat]) ? (
+                        <div className="rich-text-content" dangerouslySetInnerHTML={{ __html: notes[buildCat] as string }} />
+                    ) : (
+                        <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-dim)' }}>
+                            <NotebookPen size={26} style={{ marginBottom: 10, opacity: 0.5 }} />
+                            <p style={{ fontSize: 13 }}>
+                                No {activeCategoryLabel} notes yet. Add them in{' '}
+                                <Link href="/settings?tab=buildnotes" style={{ color: 'var(--accent-light)', fontWeight: 600 }}>Settings</Link>.
+                            </p>
+                        </div>
+                    )}
+                </div>
+              </div>{/* ── END RIGHT column ── */}
+
+            </div>{/* ── END two-column layout ── */}
 
             {/* Pending tasks modal — grouped by project code, ordered by urgency */}
             {showTasksModal && (

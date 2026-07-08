@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import RichTextEditor from '@/components/ui/RichTextEditor'
+import { BUILD_NOTE_CATEGORIES, type BuildNoteCategoryId, type BuildNotesData, normalizeBuildNotes } from '@/lib/buildNotes'
 import {
     Layers, Users, ListChecks, Timer, Database, NotebookPen,
     Check, Lock, GripVertical, Download, AlertTriangle, type LucideIcon,
@@ -14,7 +15,7 @@ interface Template { id: string; text: string; position: number }
 interface Client { id: string; name: string }
 interface Settings {
     work_start_time?: string; work_end_time?: string; idle_alert_minutes?: number; long_session_alert_minutes?: number
-    build_notes?: string | null
+    build_notes?: BuildNotesData | string | null
 }
 
 const STAGE_COLORS = ['#64748b', '#4f46e5', '#f59e0b', '#ef4444', '#22c55e', '#8b5cf6', '#06b6d4', '#ec4899']
@@ -40,6 +41,9 @@ export default function SettingsClient({ userId, initialStages, initialTemplates
     const [templates, setTemplates] = useState(initialTemplates)
     const [clients, setClients] = useState(initialClients)
     const [settings, setSettings] = useState<Settings>(initialSettings ?? {})
+    const [buildNotes, setBuildNotes] = useState<BuildNotesData>(() => normalizeBuildNotes(initialSettings?.build_notes))
+    const [buildCat, setBuildCat] = useState<BuildNoteCategoryId>('general')
+    const [savingNotes, setSavingNotes] = useState(false)
     const [saved, setSaved] = useState(false)
     const [newStageName, setNewStageName] = useState('')
     const [newStageColor, setNewStageColor] = useState(STAGE_COLORS[1])
@@ -162,12 +166,37 @@ export default function SettingsClient({ userId, initialStages, initialTemplates
         showSaved()
     }
 
-    // Settings save
+    // Settings save. Uses upsert (not update) so it still works if the user has no
+    // user_settings row yet, and surfaces errors instead of silently claiming "Saved".
     const saveSettings = async () => {
-        await supabase.from('user_settings').update({
-            ...settings, updated_at: new Date().toISOString()
-        }).eq('id', userId)
+        const { error } = await supabase.from('user_settings').upsert({
+            id: userId,
+            work_start_time: settings.work_start_time,
+            work_end_time: settings.work_end_time,
+            idle_alert_minutes: settings.idle_alert_minutes,
+            long_session_alert_minutes: settings.long_session_alert_minutes,
+            updated_at: new Date().toISOString(),
+        })
+        if (error) { alert(`Could not save preferences: ${error.message}`); return }
         showSaved()
+        // Bust the router cache so other pages re-read the fresh settings on next navigation.
+        router.refresh()
+    }
+
+    // Build Notes save — writes the whole per-category JSONB object.
+    const saveBuildNotes = async () => {
+        setSavingNotes(true)
+        const { error } = await supabase.from('user_settings').upsert({
+            id: userId,
+            build_notes: buildNotes,
+            updated_at: new Date().toISOString(),
+        })
+        setSavingNotes(false)
+        if (error) { alert(`Could not save build notes: ${error.message}`); return }
+        showSaved()
+        // Critical: without this, navigating to Overview serves a stale cached page and the
+        // just-saved notes appear to "vanish" until a hard reload.
+        router.refresh()
     }
 
     // Data export
@@ -496,15 +525,39 @@ export default function SettingsClient({ userId, initialStages, initialTemplates
                 {tab === 'buildnotes' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                         <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6, margin: 0 }}>
-                            Important points to keep in mind before or during a build. This shows up as a read-only panel on your Overview page.
+                            Important points to keep in mind before or during a build, grouped by build type.
+                            These show up as a read-only panel on your Overview page.
                         </p>
+
+                        {/* Category sub-tabs */}
+                        <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)' }}>
+                            {BUILD_NOTE_CATEGORIES.map(cat => (
+                                <button
+                                    key={cat.id}
+                                    onClick={() => setBuildCat(cat.id)}
+                                    style={{
+                                        padding: '8px 14px', fontSize: 13, fontWeight: buildCat === cat.id ? 600 : 500,
+                                        color: buildCat === cat.id ? 'var(--accent)' : 'var(--text-muted)',
+                                        background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                                        borderBottom: `2px solid ${buildCat === cat.id ? 'var(--accent)' : 'transparent'}`,
+                                        marginBottom: -1, transition: 'all 0.15s',
+                                    }}
+                                >
+                                    {cat.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* One editor per category — keyed so switching tabs remounts it with
+                            that category's saved content (the editor seeds content on mount). */}
                         <RichTextEditor
-                            content={settings.build_notes ?? ''}
-                            onChange={html => setSettings(prev => ({ ...prev, build_notes: html }))}
+                            key={buildCat}
+                            content={buildNotes[buildCat] ?? ''}
+                            onChange={html => setBuildNotes(prev => ({ ...prev, [buildCat]: html }))}
                             placeholder="e.g. Always confirm GDPR banner copy with the client before going live…"
                         />
-                        <button className="btn btn-primary" style={{ alignSelf: 'flex-start' }} onClick={saveSettings}>
-                            Save build notes
+                        <button className="btn btn-primary" style={{ alignSelf: 'flex-start' }} onClick={saveBuildNotes} disabled={savingNotes}>
+                            {savingNotes ? 'Saving…' : 'Save build notes'}
                         </button>
                     </div>
                 )}

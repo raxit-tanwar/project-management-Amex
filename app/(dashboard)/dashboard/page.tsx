@@ -26,7 +26,7 @@ export default async function DashboardPage() {
             userDisplayName={profile?.display_name || user.email?.split('@')[0]}
             initialStages={stages ?? []}
             initialProjects={(projects ?? []) as unknown as Parameters<typeof OverviewClient>[0]['initialProjects']}
-            buildNotes={settings?.build_notes ?? ''}
+            buildNotes={settings?.build_notes ?? null}
         />
     )
 }
