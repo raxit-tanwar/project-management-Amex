@@ -15,6 +15,7 @@ interface Template { id: string; text: string; position: number }
 interface Client { id: string; name: string }
 interface Settings {
     work_start_time?: string; work_end_time?: string; idle_alert_minutes?: number; long_session_alert_minutes?: number
+    monthly_target_hours?: number
     build_notes?: BuildNotesData | string | null
 }
 
@@ -175,6 +176,7 @@ export default function SettingsClient({ userId, initialStages, initialTemplates
             work_end_time: settings.work_end_time,
             idle_alert_minutes: settings.idle_alert_minutes,
             long_session_alert_minutes: settings.long_session_alert_minutes,
+            monthly_target_hours: settings.monthly_target_hours,
             updated_at: new Date().toISOString(),
         })
         if (error) { alert(`Could not save preferences: ${error.message}`); return }
@@ -513,6 +515,20 @@ export default function SettingsClient({ userId, initialStages, initialTemplates
                             />
                             <p style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 6 }}>
                                 Warning when a single timer session exceeds this duration without a pause.
+                            </p>
+                        </div>
+                        <div>
+                            <label className="label" htmlFor="monthly-target">Monthly hours target</label>
+                            <input
+                                id="monthly-target"
+                                type="number"
+                                className="input"
+                                min={1} max={400}
+                                value={settings.monthly_target_hours ?? 160}
+                                onChange={e => setSettings(prev => ({ ...prev, monthly_target_hours: parseInt(e.target.value) }))}
+                            />
+                            <p style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 6 }}>
+                                Used on Reports → Goals to compare logged hours against a target for the period.
                             </p>
                         </div>
                         <button className="btn btn-primary" style={{ alignSelf: 'flex-start' }} onClick={saveSettings}>
