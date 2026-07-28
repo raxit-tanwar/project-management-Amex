@@ -17,6 +17,7 @@ interface Project {
     stage_id?: string; stage?: Stage | null; client?: { name: string } | null
     tasks?: Task[]
 }
+type FlatTask = Task & { projectId: string; projectName: string; eventCode?: string }
 
 interface OverviewClientProps {
     userDisplayName?: string
@@ -30,6 +31,18 @@ const CARD: React.CSSProperties = {
     boxShadow: 'var(--shadow-xs)',
 }
 
+// Which task list the "view tasks" modal is showing — set by whichever card/chip
+// was clicked. Each filter's tasks are grouped by project inside the modal so a
+// user can tell which project an overdue/due-this-week task belongs to, rather
+// than being dropped on the full board with no way to locate them.
+type TaskModalFilter = 'pending' | 'overdue' | 'dueThisWeek'
+
+const TASK_MODAL_CONFIG: Record<TaskModalFilter, { title: string; empty: string; accent: string }> = {
+    pending:     { title: 'Pending Tasks',       empty: 'No pending tasks. Nice work!',  accent: 'var(--accent-light)' },
+    overdue:     { title: 'Overdue Tasks',       empty: 'No overdue tasks. Nice work!',  accent: 'var(--danger)' },
+    dueThisWeek: { title: 'Tasks Due This Week', empty: 'No tasks due this week.',       accent: '#d97706' },
+}
+
 function formatTaskDue(due_at?: string | null, hasTime?: boolean): string {
     if (!due_at) return ''
     const d = new Date(due_at)
@@ -38,12 +51,37 @@ function formatTaskDue(due_at?: string | null, hasTime?: boolean): string {
     return `${datePart} · ${d.toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' })}`
 }
 
+// Groups a flat task list under its project code, for the "view tasks" modal.
+// Within each group, tasks are ordered by urgency: overdue first (most overdue
+// leading), then soonest due, then undated; In Progress edges out To Do on ties.
+// Groups themselves are ordered by their single most urgent task.
+function groupByProject(tasks: FlatTask[]) {
+    const urgencyOf = (t: FlatTask) => (t.due_at ? new Date(t.due_at).getTime() : Infinity)
+    const statusRank = (t: FlatTask) => (t.status === 'In Progress' ? 0 : 1)
+    const groups = new Map<string, { projectId: string; code: string; projectName: string; tasks: FlatTask[]; urgency: number }>()
+    tasks.forEach(t => {
+        let g = groups.get(t.projectId)
+        if (!g) {
+            g = { projectId: t.projectId, code: t.eventCode || t.projectName || 'Untitled', projectName: t.projectName || '', tasks: [], urgency: Infinity }
+            groups.set(t.projectId, g)
+        }
+        g.tasks.push(t)
+    })
+    const list = Array.from(groups.values())
+    list.forEach(g => {
+        g.tasks.sort((a, b) => urgencyOf(a) - urgencyOf(b) || statusRank(a) - statusRank(b) || a.name.localeCompare(b.name))
+        g.urgency = g.tasks.length ? urgencyOf(g.tasks[0]) : Infinity
+    })
+    list.sort((a, b) => a.urgency - b.urgency || a.code.localeCompare(b.code))
+    return list
+}
+
 export default function OverviewClient({ userDisplayName, initialStages, initialProjects, buildNotes }: OverviewClientProps) {
     const stages = useMemo(() => [...initialStages].sort((a, b) => a.position - b.position), [initialStages])
     const projects = initialProjects
     const [calendarMonth, setCalendarMonth] = useState(() => new Date())
     const [selectedDay, setSelectedDay] = useState<string | null>(null)
-    const [showTasksModal, setShowTasksModal] = useState(false)
+    const [taskModal, setTaskModal] = useState<TaskModalFilter | null>(null)
     const [buildCat, setBuildCat] = useState<BuildNoteCategoryId>('general')
     const notes = useMemo(() => normalizeBuildNotes(buildNotes), [buildNotes])
     const activeCategoryLabel = BUILD_NOTE_CATEGORIES.find(c => c.id === buildCat)?.label ?? ''
@@ -58,12 +96,11 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
 
     const totalActive = projects.length
 
-    const allTasks = useMemo(() =>
+    const allTasks: FlatTask[] = useMemo(() =>
         projects.flatMap(p => (p.tasks ?? []).map(t => ({
             ...t, projectId: p.id, projectName: p.name, eventCode: p.event_code,
         })))
     , [projects])
-    type FlatTask = typeof allTasks[number]
 
     const pendingTasks = allTasks.filter(t => t.status !== 'Done')
     const todoCount = allTasks.filter(t => t.status === 'To Do').length
@@ -76,6 +113,10 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
         const d = daysRemaining(t.due_at)
         return d !== null && d >= 0 && d <= 7
     })
+    // Due today but not (yet) overdue — e.g. a same-day task with a specific time that
+    // hasn't passed yet. Excludes anything isTaskOverdue already counts, so combining the
+    // two below never double-lists a task.
+    const dueTodayTasks = pendingTasks.filter(t => !isTaskOverdue(t.due_at, t.due_has_time) && daysRemaining(t.due_at) === 0)
 
     // Pending tasks that carry a due date — overdue first (past dates sort first), then soonest.
     const datedPendingTasks = useMemo(() =>
@@ -84,39 +125,27 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
             .sort((a, b) => new Date(a.due_at!).getTime() - new Date(b.due_at!).getTime())
     , [pendingTasks])
 
-    // Pending tasks grouped under their project code, for the "View tasks" modal.
-    // Within each group, tasks are ordered by urgency: overdue first (most overdue
-    // leading), then soonest due, then undated; In Progress edges out To Do on ties.
-    // Groups themselves are ordered by their single most urgent task.
-    const pendingByProject = useMemo(() => {
-        const urgencyOf = (t: FlatTask) => (t.due_at ? new Date(t.due_at).getTime() : Infinity)
-        const statusRank = (t: FlatTask) => (t.status === 'In Progress' ? 0 : 1)
-        const groups = new Map<string, { projectId: string; code: string; projectName: string; tasks: FlatTask[]; urgency: number }>()
-        allTasks.forEach(t => {
-            if (t.status === 'Done') return
-            let g = groups.get(t.projectId)
-            if (!g) {
-                g = { projectId: t.projectId, code: t.eventCode || t.projectName || 'Untitled', projectName: t.projectName || '', tasks: [], urgency: Infinity }
-                groups.set(t.projectId, g)
-            }
-            g.tasks.push(t)
-        })
-        const list = Array.from(groups.values())
-        list.forEach(g => {
-            g.tasks.sort((a, b) => urgencyOf(a) - urgencyOf(b) || statusRank(a) - statusRank(b) || a.name.localeCompare(b.name))
-            g.urgency = g.tasks.length ? urgencyOf(g.tasks[0]) : Infinity
-        })
-        list.sort((a, b) => a.urgency - b.urgency || a.code.localeCompare(b.code))
-        return list
-    }, [allTasks])
+    // Action Items' default view (no calendar day picked): what's actionable right now —
+    // overdue plus due today — rather than every dated task ever, however far out.
+    const todayAndOverdueTasks = useMemo(() =>
+        [...overdueTasks, ...dueTodayTasks].sort((a, b) => new Date(a.due_at!).getTime() - new Date(b.due_at!).getTime())
+    , [overdueTasks, dueTodayTasks])
+
+    const pendingByProject = useMemo(() => groupByProject(pendingTasks), [pendingTasks])
+    const overdueByProject = useMemo(() => groupByProject(overdueTasks), [overdueTasks])
+    const dueThisWeekByProject = useMemo(() => groupByProject(tasksDueThisWeek), [tasksDueThisWeek])
+
+    const activeModalGroups = taskModal === 'overdue' ? overdueByProject : taskModal === 'dueThisWeek' ? dueThisWeekByProject : pendingByProject
+    const activeModalCount = activeModalGroups.reduce((n, g) => n + g.tasks.length, 0)
+    const activeModalProjectCount = activeModalGroups.length
 
     // Close the tasks modal on Escape.
     useEffect(() => {
-        if (!showTasksModal) return
-        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowTasksModal(false) }
+        if (!taskModal) return
+        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setTaskModal(null) }
         window.addEventListener('keydown', onKey)
         return () => window.removeEventListener('keydown', onKey)
-    }, [showTasksModal])
+    }, [taskModal])
 
     // Map of yyyy-MM-dd (local) -> dated pending tasks, for calendar dots + day filter.
     const taskDueByDate = useMemo(() => {
@@ -130,7 +159,7 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
         return map
     }, [datedPendingTasks])
 
-    const scheduleTasks = selectedDay ? (taskDueByDate.get(selectedDay) ?? []) : datedPendingTasks
+    const scheduleTasks = selectedDay ? (taskDueByDate.get(selectedDay) ?? []) : todayAndOverdueTasks
 
     const monthStart = startOfMonth(calendarMonth)
     const monthEnd = endOfMonth(calendarMonth)
@@ -191,7 +220,7 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
                         <ListTodo size={16} color="var(--accent-light)" />
                         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Pending Tasks</span>
                         <button
-                            onClick={() => setShowTasksModal(true)}
+                            onClick={() => setTaskModal('pending')}
                             disabled={pendingTasks.length === 0}
                             style={{
                                 marginLeft: 'auto', fontSize: 12, color: 'var(--accent-light)', background: 'none', border: 'none',
@@ -217,16 +246,24 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
                 </div>
             </div>
 
-            {/* Quick stat chips — stacked full-width in the left column */}
+            {/* Quick stat chips — stacked full-width in the left column. Open the tasks
+                modal filtered to this chip's list, rather than dropping the user on the
+                full board with no way to tell which project each task belongs to. */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {[
-                    { label: 'Overdue Tasks', count: overdueTasks.length, color: '#dc2626', bg: 'rgba(220,38,38,0.1)' },
-                    { label: 'Tasks Due This Week', count: tasksDueThisWeek.length, color: '#d97706', bg: 'rgba(217,119,6,0.1)' },
-                ].map(chip => (
-                    <Link key={chip.label} href="/board" style={{
-                        ...CARD, padding: '14px 18px', textDecoration: 'none',
-                        display: 'flex', alignItems: 'center', gap: 12,
-                    }}>
+                {([
+                    { label: 'Overdue Tasks', count: overdueTasks.length, color: '#dc2626', bg: 'rgba(220,38,38,0.1)', filter: 'overdue' },
+                    { label: 'Tasks Due This Week', count: tasksDueThisWeek.length, color: '#d97706', bg: 'rgba(217,119,6,0.1)', filter: 'dueThisWeek' },
+                ] as const).map(chip => (
+                    <button
+                        key={chip.label}
+                        onClick={() => setTaskModal(chip.filter)}
+                        disabled={chip.count === 0}
+                        style={{
+                            ...CARD, padding: '14px 18px', width: '100%', fontFamily: 'inherit', textAlign: 'left',
+                            display: 'flex', alignItems: 'center', gap: 12,
+                            cursor: chip.count ? 'pointer' : 'default', opacity: chip.count ? 1 : 0.6,
+                        }}
+                    >
                         <div style={{
                             width: 38, height: 38, borderRadius: 10, background: chip.bg,
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -234,7 +271,7 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
                         }}>{chip.count}</div>
                         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{chip.label}</span>
                         <ChevronRight size={16} color="var(--text-dim)" style={{ marginLeft: 'auto' }} />
-                    </Link>
+                    </button>
                 ))}
             </div>
 
@@ -299,7 +336,7 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
                                 marginTop: 10, fontSize: 11, fontWeight: 600, color: 'var(--accent-light)',
                                 background: 'none', border: 'none', cursor: 'pointer', padding: 0,
                             }}>
-                                ← Show all action items
+                                ← Back to today
                             </button>
                         )}
                     </div>
@@ -313,6 +350,11 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
                             <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
                                 {selectedDay ? `Due ${format(new Date(selectedDay), 'MMM d')}` : 'Action Items'}
                             </span>
+                            {!selectedDay && (
+                                <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 6, background: 'var(--surface2)', color: 'var(--text-muted)' }}>
+                                    Today
+                                </span>
+                            )}
                             {overdueTasks.length > 0 && !selectedDay && (
                                 <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: 'rgba(220,38,38,0.12)', color: 'var(--danger)' }}>
                                     {overdueTasks.length} overdue
@@ -323,7 +365,7 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
                             {scheduleTasks.length === 0 && (
                                 <div style={{ ...CARD, gridColumn: '1 / -1', textAlign: 'center', color: 'var(--text-dim)', padding: 32 }}>
                                     <CalendarClock size={28} style={{ marginBottom: 8, opacity: 0.5 }} />
-                                    <p style={{ fontSize: 13 }}>{selectedDay ? 'No action items due on this date.' : 'No action items with a due date yet.'}</p>
+                                    <p style={{ fontSize: 13 }}>{selectedDay ? 'No action items due on this date.' : 'Nothing due today. Check the calendar for what\'s ahead.'}</p>
                                 </div>
                             )}
                             {scheduleTasks.map(t => {
@@ -402,10 +444,13 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
 
             </div>{/* ── END two-column layout ── */}
 
-            {/* Pending tasks modal — grouped by project code, ordered by urgency */}
-            {showTasksModal && (
+            {/* Tasks modal — grouped by project code, ordered by urgency. Filter (pending /
+                overdue / due-this-week) is set by whichever card or chip was clicked, so a
+                user only ever sees the tasks that card's count promised, with the project
+                each one belongs to. */}
+            {taskModal && (
                 <div
-                    onClick={e => { if (e.target === e.currentTarget) setShowTasksModal(false) }}
+                    onClick={e => { if (e.target === e.currentTarget) setTaskModal(null) }}
                     style={{
                         position: 'fixed', inset: 0, zIndex: 1000,
                         background: 'rgba(16,24,40,0.5)', backdropFilter: 'blur(2px)',
@@ -419,24 +464,24 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
                     }}>
                         {/* Header */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '18px 20px', borderBottom: '1px solid var(--border)' }}>
-                            <ListTodo size={18} color="var(--accent-light)" />
-                            <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>Pending Tasks</span>
+                            <ListTodo size={18} color={TASK_MODAL_CONFIG[taskModal].accent} />
+                            <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{TASK_MODAL_CONFIG[taskModal].title}</span>
                             <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>
-                                {pendingTasks.length} across {projectsWithPending} project{projectsWithPending !== 1 ? 's' : ''}
+                                {activeModalCount} across {activeModalProjectCount} project{activeModalProjectCount !== 1 ? 's' : ''}
                             </span>
-                            <button onClick={() => setShowTasksModal(false)} className="btn-icon btn-sm" style={{ marginLeft: 'auto', color: 'var(--text-muted)' }} aria-label="Close">
+                            <button onClick={() => setTaskModal(null)} className="btn-icon btn-sm" style={{ marginLeft: 'auto', color: 'var(--text-muted)' }} aria-label="Close">
                                 <X size={18} />
                             </button>
                         </div>
                         {/* Body */}
                         <div style={{ padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 18 }}>
-                            {pendingByProject.length === 0 && (
+                            {activeModalGroups.length === 0 && (
                                 <div style={{ textAlign: 'center', color: 'var(--text-dim)', padding: 40 }}>
                                     <CalendarClock size={28} style={{ marginBottom: 8, opacity: 0.5 }} />
-                                    <p style={{ fontSize: 13 }}>No pending tasks. Nice work!</p>
+                                    <p style={{ fontSize: 13 }}>{TASK_MODAL_CONFIG[taskModal].empty}</p>
                                 </div>
                             )}
-                            {pendingByProject.map(group => (
+                            {activeModalGroups.map(group => (
                                 <div key={group.projectId}>
                                     {/* Group header — project code */}
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -455,7 +500,7 @@ export default function OverviewClient({ userDisplayName, initialStages, initial
                                                 <Link
                                                     key={t.id}
                                                     href={`/board?project=${t.projectId}&tab=tasks`}
-                                                    onClick={() => setShowTasksModal(false)}
+                                                    onClick={() => setTaskModal(null)}
                                                     style={{
                                                         display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', textDecoration: 'none',
                                                         borderRadius: 10, border: '1px solid', borderColor: overdue ? 'rgba(220,38,38,0.4)' : 'var(--border)',
