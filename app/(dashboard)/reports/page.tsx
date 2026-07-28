@@ -7,10 +7,11 @@ export default async function ReportsPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) redirect('/login')
 
-    const [{ data: projects }, { data: stages }, { data: timeEntries }] = await Promise.all([
+    const [{ data: projects }, { data: stages }, { data: timeEntries }, { data: settings }] = await Promise.all([
         supabase.from('projects').select('*').eq('user_id', user.id),
         supabase.from('stages').select('*').eq('user_id', user.id).order('position'),
         supabase.from('time_entries').select('*').eq('user_id', user.id).order('started_at'),
+        supabase.from('user_settings').select('monthly_target_hours').eq('id', user.id).single(),
     ])
 
     return (
@@ -18,6 +19,7 @@ export default async function ReportsPage() {
             projects={projects ?? []}
             stages={stages ?? []}
             timeEntries={timeEntries ?? []}
+            settings={settings}
         />
     )
 }

@@ -4,29 +4,36 @@ import { useState } from 'react'
 import { formatDuration } from '@/lib/utils'
 import {
     BarChart, Bar, PieChart, Pie, LineChart, Line,
-    XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
+    XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, ReferenceLine,
     type TooltipContentProps
 } from 'recharts'
-import { BarChart3, Clock, TrendingUp, Download, type LucideIcon } from 'lucide-react'
+import { BarChart3, Clock, TrendingUp, Target, Download, type LucideIcon } from 'lucide-react'
 
 interface Project {
     id: string; name: string; build_type?: string; project_type?: string; stage_id?: string; created_at: string; archived: boolean
+    build_assigned_date?: string | null; build_live_date?: string | null
 }
 interface Stage { id: string; name: string; color: string }
 interface TimeEntry { id: string; project_id?: string; started_at: string; duration_seconds?: number }
+interface Settings { monthly_target_hours?: number | null }
 
-type ReportTab = 'status' | 'time' | 'stage'
+type ReportTab = 'status' | 'time' | 'goals' | 'stage'
 
 const TABS: { id: ReportTab; label: string; icon: LucideIcon }[] = [
     { id: 'status', label: 'Project Status', icon: BarChart3 },
     { id: 'time', label: 'Time Report', icon: Clock },
+    { id: 'goals', label: 'Goals', icon: Target },
     { id: 'stage', label: 'Stage Movement', icon: TrendingUp },
 ]
 
 const CHART_COLORS = ['#4f46e5', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#64748b']
 
-export default function ReportsClient({ projects: allProjects, stages, timeEntries: allTimeEntries }: {
-    projects: Project[]; stages: Stage[]; timeEntries: TimeEntry[]
+// Fallback when the user hasn't set a personal target yet (Settings > Timer Preferences),
+// matching the 8h/day assumption OverviewClient already uses elsewhere in the app.
+const DEFAULT_MONTHLY_TARGET_HOURS = 160
+
+export default function ReportsClient({ projects: allProjects, stages, timeEntries: allTimeEntries, settings }: {
+    projects: Project[]; stages: Stage[]; timeEntries: TimeEntry[]; settings?: Settings | null
 }) {
     const [tab, setTab] = useState<ReportTab>('status')
     
@@ -99,6 +106,39 @@ export default function ReportsClient({ projects: allProjects, stages, timeEntri
     })
 
     const totalSeconds = timeEntries.reduce((s, e) => s + (e.duration_seconds || 0), 0)
+
+    // Goals — personal monthly target vs. hours logged in the selected period, and average
+    // turnaround (build assigned -> live) for projects that went live within that period.
+    // Target is prorated by the number of days in the selected range (out of a 30-day month)
+    // so a narrow range isn't unfairly compared against a full month's target.
+    const monthlyTargetHours = settings?.monthly_target_hours ?? DEFAULT_MONTHLY_TARGET_HOURS
+    const rangeDays = Math.max(1, Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000))
+    const targetForRange = +(monthlyTargetHours * rangeDays / 30).toFixed(1)
+    const hoursInRange = +(totalSeconds / 3600).toFixed(1)
+    const targetAttainmentPct = targetForRange > 0 ? Math.round((hoursInRange / targetForRange) * 100) : 0
+
+    const completedInRange = projects.filter(p =>
+        !p.archived && p.build_assigned_date && p.build_live_date &&
+        p.build_live_date >= startDate && p.build_live_date <= endDate
+    )
+    const avgTurnaroundDays = completedInRange.length
+        ? Math.round(
+            completedInRange.reduce((sum, p) =>
+                sum + (new Date(p.build_live_date!).getTime() - new Date(p.build_assigned_date!).getTime()) / 86400000
+            , 0) / completedInRange.length
+        )
+        : null
+
+    // Monthly hours trend — last 6 calendar months, independent of the date-range filter
+    // above (mirrors the existing "Daily hours — Last 14 days" chart's fixed-window approach).
+    const last6Months = Array.from({ length: 6 }, (_, i) => {
+        const d = new Date()
+        d.setDate(1) // pin to day 1 first so setMonth can't overflow into the wrong month
+        d.setMonth(d.getMonth() - (5 - i))
+        const monthKey = d.toISOString().slice(0, 7)
+        const seconds = allTimeEntries.filter(e => e.started_at?.slice(0, 7) === monthKey).reduce((s, e) => s + (e.duration_seconds || 0), 0)
+        return { month: d.toLocaleDateString('en', { month: 'short' }), hours: +(seconds / 3600).toFixed(1) }
+    })
 
     // Stage movement (age estimate from project creation)
     const stageData = stages.map(s => ({
@@ -183,6 +223,7 @@ export default function ReportsClient({ projects: allProjects, stages, timeEntri
                     onClick={() => {
                         if (tab === 'time') exportCSV(timePerProject as unknown as Record<string, unknown>[], 'time-report.csv')
                         if (tab === 'status') exportCSV(statusData as unknown as Record<string, unknown>[], 'status-report.csv')
+                        if (tab === 'goals') exportCSV(last6Months as unknown as Record<string, unknown>[], 'goals-report.csv')
                     }}
                 >
                     <Download size={14} /> Download Report
@@ -286,6 +327,56 @@ export default function ReportsClient({ projects: allProjects, stages, timeEntri
                                     </BarChart>
                                 </ResponsiveContainer>
                             )}
+                        </div>
+                    </div>
+                )}
+
+                {/* GOALS — personal monthly hours target + turnaround, scoped to the selected period */}
+                {tab === 'goals' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+                            {[
+                                { label: 'Hours logged', value: `${hoursInRange}h` },
+                                { label: `Target (${rangeDays}d period)`, value: `${targetForRange}h` },
+                                { label: 'Avg turnaround (days)', value: avgTurnaroundDays ?? '—' },
+                            ].map(stat => (
+                                <div key={stat.label} className="card" style={{ textAlign: 'center', padding: '20px' }}>
+                                    <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent-light)', fontFamily: 'var(--font-mono)' }}>{stat.value}</div>
+                                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{stat.label}</div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="card" style={{ padding: '24px' }}>
+                            <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Hours vs. target</h3>
+                            <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 16 }}>
+                                Target for the selected {rangeDays}-day period, prorated from your monthly target of {monthlyTargetHours}h (Settings → Timer Preferences).
+                            </p>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                                <span style={{ fontSize: 13, fontWeight: 600 }}>{hoursInRange}h of {targetForRange}h</span>
+                                <span style={{ fontSize: 13, fontWeight: 700, color: targetAttainmentPct >= 100 ? 'var(--success)' : 'var(--accent-light)' }}>{targetAttainmentPct}%</span>
+                            </div>
+                            <div style={{ height: 8, background: 'var(--border)', borderRadius: 4, overflow: 'hidden' }}>
+                                <div style={{
+                                    height: '100%', borderRadius: 4,
+                                    width: `${Math.min(100, targetAttainmentPct)}%`,
+                                    background: targetAttainmentPct >= 100 ? 'var(--success)' : 'var(--accent)',
+                                    transition: 'width 0.4s ease'
+                                }} />
+                            </div>
+                        </div>
+
+                        <div className="card" style={{ padding: '24px' }}>
+                            <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 20 }}>Monthly hours — Last 6 months</h3>
+                            <ResponsiveContainer width="100%" height={200}>
+                                <LineChart data={last6Months}>
+                                    <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+                                    <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+                                    <Tooltip content={customTooltip} />
+                                    <ReferenceLine y={monthlyTargetHours} stroke="var(--text-dim)" strokeDasharray="4 4" label={{ value: 'Target', position: 'right', fontSize: 11, fill: 'var(--text-dim)' }} />
+                                    <Line type="monotone" dataKey="hours" stroke="#4f46e5" strokeWidth={2.5} dot={{ fill: '#4f46e5', r: 4 }} name="hours" />
+                                </LineChart>
+                            </ResponsiveContainer>
                         </div>
                     </div>
                 )}

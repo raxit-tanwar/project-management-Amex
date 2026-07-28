@@ -91,6 +91,7 @@ All tables use RLS. Every user-owned table has a `user_id uuid → auth.users.id
 | work_end_time | text | `'18:00'` |
 | idle_alert_minutes | int | `30` |
 | long_session_alert_minutes | int | `120` |
+| monthly_target_hours | int | nullable — personal hours/month target on Reports > Goals; null falls back to the app default (160h) |
 
 #### `stages`
 | Column | Type | Notes |
