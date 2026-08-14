@@ -196,7 +196,11 @@ export default function BoardClient({ userId, initialStages, initialProjects, in
     }
 
     const saveDateCaptureDates = async (projectId: string, dates: Record<string, string>) => {
-        const toSave = Object.fromEntries(Object.entries(dates).filter(([, v]) => !!v))
+        const toSave = Object.fromEntries(
+            Object.entries(dates)
+                .filter(([, v]) => !!v)
+                .map(([k, v]) => [k, k === 'stage_changed_at' ? `${v}T00:00:00.000Z` : v])
+        )
         if (Object.keys(toSave).length > 0) {
             await updateProjectDates(projectId, toSave)
             setProjects(prev => prev.map(p =>
@@ -231,9 +235,13 @@ export default function BoardClient({ userId, initialStages, initialProjects, in
         const steps: DateStep[] = traversed
             .map(s => {
                 const rule = STAGE_DATE_RULES.find(r => r.match(s.name))
-                return rule ? { stageName: s.name, field: rule.field, label: rule.label, value: new Date().toISOString().split('T')[0] } : null
+                return {
+                    stageName: s.name,
+                    field: rule?.field ?? 'stage_changed_at',
+                    label: rule?.label ?? `${s.name} Date`,
+                    value: new Date().toISOString().split('T')[0],
+                }
             })
-            .filter((s): s is DateStep => s !== null)
 
         // 3. Open date capture modal if there are dates to collect
         if (steps.length > 0) {
